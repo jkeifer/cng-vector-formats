@@ -1,0 +1,22 @@
+[project]
+name = "cng-vector-formats"
+version = "0.1.0"
+description = "Exploring Cloud-Native Geospatial Formats: A Hands-on Workshop for Vector Data"
+readme = "README.md"
+authors = [
+    { name = "Jarrett Keifer", email = "jkeifer0@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "ipynb-scrubber>=0.1.0",
+    "jupyterlab>=4.4.6",
+    "pyarrow>=21.0.0",
+    "s3fs>=2025.7.0",
+    "shapely>=2.1.1",
+]
+
+[project.urls]
+Repository = 'https://github.com/jkeifer/cng-vector-formats'
+
+[tool.uv]
+package = false
