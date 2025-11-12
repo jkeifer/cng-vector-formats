@@ -8,8 +8,10 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "ipynb-scrubber>=0.1.0",
+    "devtools>=0.12.2",
+    "folium>=0.20.0",
     "jupyterlab>=4.4.6",
+    "por-que>=0.2.3",
     "pyarrow>=21.0.0",
     "s3fs>=2025.7.0",
     "shapely>=2.1.1",
@@ -20,3 +22,26 @@ Repository = 'https://github.com/jkeifer/cng-vector-formats'
 
 [tool.uv]
 package = false
+
+[dependency-groups]
+dev = [
+    "ipynb-scrubber>=0.4.1",
+]
+
+[tool.ipynb-scrubber.options]
+clear-text = ""
+
+[[tool.ipynb-scrubber.files]]
+input = "notebooks/01_completed.ipynb"
+output = "notebooks/01_is-geojson-cloud-native.ipynb"
+notes-file = "notes/01_is-geojson-cloud-native.md"
+
+[[tool.ipynb-scrubber.files]]
+input = "notebooks/02_completed.ipynb"
+output = "notebooks/02_the-well-knowns.ipynb"
+notes-file = "notes/02_the-well-knowns.md"
+
+[[tool.ipynb-scrubber.files]]
+input = "notebooks/03_completed.ipynb"
+output = "notebooks/03_reading-parquet-the-hard-way.ipynb"
+notes-file = "notes/03_reading-parquet-the-hard-way.md"
