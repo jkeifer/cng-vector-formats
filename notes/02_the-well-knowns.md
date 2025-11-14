@@ -2,10 +2,10 @@
 
 This file contains the original content of cells marked for note-taking.
 
-## geom_str = '''PASTE YOUR GEOJSON GEOMETRY HERE'''
+## cell0
 
 ```python
-#| scrub-note: geom_str = '''PASTE YOUR GEOJSON GEOMETRY HERE'''
+#| scrub-note: cell0 | geom_str = '''PASTE YOUR GEOJSON GEOMETRY HERE'''
 geom_str = '''{
     "coordinates": [[
         [174.76536299052356, -36.85325730119731],
@@ -19,18 +19,18 @@ geom_str = '''{
 }'''
 ```
 
-## wkt = 'WRITE YOUR WKT POLYGON HERE'
+## cell1
 
 ```python
-#| scrub-note: wkt = 'WRITE YOUR WKT POLYGON HERE'
+#| scrub-note: cell1 | wkt = 'WRITE YOUR WKT POLYGON HERE'
 wkt = 'POLYGON((174.76536299052356 -36.85325730119731, 174.76501948066357 -36.85354934760823, 174.76510987799577 -36.853728372411425, 174.76557768418712 -36.85354844344181, 174.76544321815658 -36.85331878474462, 174.76536299052356 -36.85325730119731))'
 wkt
 ```
 
-## # DEFINE THE ABOVE VARIABLES HERE FOR YOUR GEOMETRY
+## cell2
 
 ```python
-#| scrub-note: # DEFINE THE ABOVE VARIABLES HERE FOR YOUR GEOMETRY
+#| scrub-note: cell2 | # DEFINE THE ABOVE VARIABLES HERE FOR YOUR GEOMETRY
 endianness = 1
 geom_type = 3
 ring_count = 1
@@ -44,10 +44,10 @@ ring_points = [
 ]
 ```
 
-## wkb = struct.pack(\n    'FILL IN THE FORMAT CODE',\n    endianness,\n    geom_type,\n    ring_count,\n    len(ring_points),\n    *(c for pair in ring_points for c in pair),\n)
+## cell3
 
 ```python
-#| scrub-note: wkb = struct.pack(\n    'FILL IN THE FORMAT CODE',\n    endianness,\n    geom_type,\n    ring_count,\n    len(ring_points),\n    *(c for pair in ring_points for c in pair),\n)
+#| scrub-note: cell3 | cell wkb = struct.pack(\n    'FILL IN THE FORMAT CODE',\n    endianness,\n    geom_type,\n    ring_count,\n    len(ring_points),\n    *(c for pair in ring_points for c in pair),\n)
 wkb = struct.pack(
     f'{"<" if endianness else ">"}BIII{len(ring_points)*2}d',
     endianness,
