@@ -708,11 +708,11 @@ wheels = [
 
 [[package]]
 name = "hctef"
-version = "0.1.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/07/a3/7af0bcfe7504e196fd5481e51b6e264b8f0aca30fc3bd859a2d1f522c6ab/hctef-0.1.0.tar.gz", hash = "sha256:b691f6067c96f69067c4fc11c897a2737a40ff350b1d8e4f9e67ecc7682a872e", size = 77241, upload-time = "2025-10-21T00:11:47.026Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/8c/9d4871a2fb7715dd6081386c5ffd8d08c9fed26a5ff38bc00a74b171bd3e/hctef-0.1.1.tar.gz", hash = "sha256:c720930343c031e50ff97280dcc2c9f8d22db8aa6b2b900784b6a6a29ed39032", size = 77344, upload-time = "2025-11-16T22:18:17.524Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6c/10/d1451fc633148b24ee7b6b793a653851e48f6b6dee8b6774a7a58494c219/hctef-0.1.0-py3-none-any.whl", hash = "sha256:daa4382380800a120149fb6607bd7592549a09eb484198f6b62ac50e0ec12186", size = 15199, upload-time = "2025-10-21T00:11:45.979Z" },
+    { url = "https://files.pythonhosted.org/packages/ae/ad/3666c2f966a429a9c1268967260ece0dd94bdcb31b29fa62fba479358f46/hctef-0.1.1-py3-none-any.whl", hash = "sha256:cf833f23c596be844fc673dc414ce1b63e977bbb506ff757576b9746173b4e00", size = 15296, upload-time = "2025-11-16T22:18:15.956Z" },
 ]
 
 [package.optional-dependencies]
