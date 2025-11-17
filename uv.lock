@@ -443,7 +443,7 @@ requires-dist = [
     { name = "devtools", specifier = ">=0.12.2" },
     { name = "folium", specifier = ">=0.20.0" },
     { name = "jupyterlab", specifier = ">=4.4.6" },
-    { name = "por-que", specifier = ">=0.2.3" },
+    { name = "por-que", specifier = ">=0.2.4" },
     { name = "pyarrow", specifier = ">=21.0.0" },
     { name = "s3fs", specifier = ">=2025.7.0" },
     { name = "shapely", specifier = ">=2.1.1" },
@@ -1420,7 +1420,7 @@ wheels = [
 
 [[package]]
 name = "por-que"
-version = "0.2.3"
+version = "0.2.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "brotli" },
@@ -1429,9 +1429,9 @@ dependencies = [
     { name = "python-snappy" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3f/d5/4e193cef310bab278ad0b31954704e8ff64d9c254b949853eb8c86ec42a7/por_que-0.2.3.tar.gz", hash = "sha256:aef78a4ad970a7b671a81121abb22ac069bdd60ec31df5c2bdb4ff3ef35c892e", size = 573951, upload-time = "2025-10-29T04:08:18.914Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/38/2f/dcaf5c9e6d34330d07072d4c88897e5119a1c41b7f8c7ea35b7b9d0e740c/por_que-0.2.4.tar.gz", hash = "sha256:37dbf647eecc23ab11726a80b21746d09673f7aa92300dec63da8313609fb4b5", size = 574081, upload-time = "2025-11-17T05:53:43.035Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/a4/cbeb2bebccd96d6697cbddb484b0594def8508938d4568bf9e569fce4613/por_que-0.2.3-py3-none-any.whl", hash = "sha256:dc6efb6f42d1e5cda1472ee2eafea9d224038016ee036dde49d3c3cca8a59174", size = 77661, upload-time = "2025-10-29T04:08:17.169Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/58/c838eced08a078163c366eb1be85919f345c5db8e8dc3f7a0caa8a4fbb93/por_que-0.2.4-py3-none-any.whl", hash = "sha256:41441e17c5d59e8c53defa7e05a82413c5e8fb594ec5d66762c319cba27bcaf6", size = 77651, upload-time = "2025-11-17T05:53:41.789Z" },
 ]
 
 [[package]]
