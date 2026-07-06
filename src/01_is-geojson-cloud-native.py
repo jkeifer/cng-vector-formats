@@ -11,7 +11,7 @@
 #
 # `Feature`s compose a `Geometry` (again, optionally, as technically a geometry is not required) with attributes. Every `Feature` can optionally have an `id` attribute, a `bbox` attribute, and any other custom attributes go into a feature's `properties` member.
 #
-# In addition to these two discrete object types, GeoJSON also has two collections types: `FeatureCollection` and `GeometryCollection`. The former is effectively an object with an array of `Feature`s. The latter is a bit of a weirder one: it too defines an object with an array, but of `Geometry` objects. Except a `GeometryCollection` is also a valid `Geometry` type. But don't let that throw you, `GeometryCollections` aren't all that common so we won't worry about them from here on out.
+# In addition to these two discrete object types, GeoJSON also has two collection types: `FeatureCollection` and `GeometryCollection`. The former is effectively an object with an array of `Feature`s. The latter is a bit of a weirder one: it too defines an object with an array, but of `Geometry` objects. Except a `GeometryCollection` is also a valid `Geometry` type. But don't let that throw you, `GeometryCollections` aren't all that common so we won't worry about them from here on out.
 #
 # In all of these cases, a `type` attribute is used to specify an object is any one of these types.
 #
@@ -32,7 +32,7 @@
 #
 # ### To learn more
 #
-# We're not going too deep with GeoJSON. We don't need to do so to answer our question. But, if you want to learn more, GeoJSON is quie widespread and _many_ resources exist online. If I am going to call out any of them though, it would have to be the [GeoJSON RFC7946](https://datatracker.ietf.org/doc/html/rfc7946) (because you should read RFCs, they are great) and anything by Tom MacWright on the topic (in chronological order, recommended to consume in that order):
+# We're not going too deep with GeoJSON. We don't need to do so to answer our question. But, if you want to learn more, GeoJSON is quite widespread and _many_ resources exist online. If I am going to call out any of them though, it would have to be the [GeoJSON RFC7946](https://datatracker.ietf.org/doc/html/rfc7946) (because you should read RFCs, they are great) and anything by Tom MacWright on the topic (in chronological order, recommended to consume in that order):
 #
 # * [More than you ever wanted to know about GeoJSON](https://macwright.com/2015/03/23/geojson-second-bite)
 # * [Falsehoods developers believe about GeoJSON](https://macwright.com/2016/06/05/falsehoods-developers-believe-about-geojson)
@@ -59,7 +59,7 @@ import json
 # ![geojson.io example](assets/geojson_io.png)
 
 # %%
-#| scrub-note: cell0 | geojson_str = '''PASTE YOUR GEOJSON FEATURE COLLECTION HERE'''
+#| scrub-note: cell0 | geojson_str = """PASTE YOUR GEOJSON FEATURE COLLECTION HERE"""
 geojson_str = """{
   "type": "FeatureCollection",
   "features": [
@@ -117,18 +117,18 @@ geojson
 #
 # This GeoJSON is not large. As a string it is only 910 bytes long. Cloud-native concerns don't even begin to come into play with this example, it's just not big enough for us to have to worry about read inefficiencies.
 #
-# But notice the length of each point: a point coordinate pair like `[174.76510987799577,-36.853728372411425],` is 41 bytes, and that's removing all whitespace from consideration. Imagine I did a better job tracing the building, we could have 16 points instead of just 6. Or 49 if I had follow the zigzags. Or even more if I tried to follow the apparent radius of the building corner...
+# But notice the length of each point: a point coordinate pair like `[174.76510987799577,-36.853728372411425],` is 41 bytes, and that's removing all whitespace from consideration. Imagine I did a better job tracing the building, we could have 16 points instead of just 6. Or 49 if I had followed the zigzags. Or even more if I tried to follow the apparent radius of the building corner...
 #
-# Imagine then we extend this feature collection so it contains similar geometries for all building in Auckland. Or New Zealand's North Island. Or all of Oceania.
+# Imagine then we extend this feature collection so it contains similar geometries for all buildings in Auckland. Or New Zealand's North Island. Or all of Oceania.
 #
 # We start to see a potential problem...
 
 # %% [markdown]
 # ### Examining GeoJSON's "cloud nativeness"
 #
-# The core tenent of cloud native data formats is the ability to selectively read what we want out of them using metadata that gives a means of indexing into the data format. Perhaps immediately we can see a problem: what metadata do we have. But before we get there, let's see what we can do our GeoJSON string.
+# The core tenet of cloud native data formats is the ability to selectively read what we want out of them using metadata that gives a means of indexing into the data format. Perhaps immediately we can see a problem: what metadata do we have? But before we get there, let's see what we can do with our GeoJSON string.
 #
-# Notably, a large scale production dataset would be unlikely to contain whitespace (as it just wastes bytes), so let's dump our parsed json to a string an use that "dewhitespaced" version for this portion of the exercise.
+# Notably, a large scale production dataset would be unlikely to contain whitespace (as it just wastes bytes), so let's dump our parsed json to a string and use that "dewhitespaced" version for this portion of the exercise.
 
 # %%
 condensed = json.dumps(geojson, separators=(',', ':'))
@@ -167,7 +167,7 @@ json.loads(substring)
 # %% [markdown]
 # Woah, cool, that worked! So we _can_ selectively read GeoJSON to extract just what we want, right?
 #
-# Well, yes, maybe. But look at what we had to do to make this work. We had use our knowledge of the structure of the GeoJSON feature collection in the original string to know that we in fact did have a feature collection from which we could read a feature. And that we had only one feature to read: using this character finding strategy is only effective with a single feature, and would break down if we added any more. Then we had to have _the whole GeoJSON string_ to be able to find those slice indices to finally be able to say which part of the GeoJSON we really wanted, to just read that part out and parse it.
+# Well, yes, maybe. But look at what we had to do to make this work. We had to use our knowledge of the structure of the GeoJSON feature collection in the original string to know that we in fact did have a feature collection from which we could read a feature. And that we had only one feature to read: using this character finding strategy is only effective with a single feature, and would break down if we added any more. Then we had to have _the whole GeoJSON string_ to be able to find those slice indices to finally be able to say which part of the GeoJSON we really wanted, to just read that part out and parse it.
 #
 # Phew. That's a lot. And it required all the data to do it.
 #
@@ -175,8 +175,8 @@ json.loads(substring)
 #
 # No.
 #
-# This exercise confirms it. Sure, it is theoretically possible we could build an index into a GeoJSON file, to be able to read it in pieces, feature by feature. We could consider this new theoretical index like kerchunk but for vectors. We'd have to index the various attributes of our features and have a way to search on them to figure out what byte ranges we would need to read to get those features out of the larger GeoJSON feature class in object storage. This is starting to get complex...
+# This exercise confirms it. Sure, it is theoretically possible we could build an index into a GeoJSON file, to be able to read it in pieces, feature by feature. We could consider this new theoretical index like kerchunk but for vectors. We'd have to index the various attributes of our features and have a way to search on them to figure out what byte ranges we would need to read to get those features out of the larger GeoJSON feature collection in object storage. This is starting to get complex...
 #
 # But GeoJSON itself does not provide this. There's no metadata in the file itself that tells us how to do this selective reading. The idea above even points out that if we did have start and end offsets for each feature we'd still not know which of those we'd want to read without some higher level of attribute index layered on top. Again, nothing like that is in GeoJSON.
 #
-# As a data interchange format, like a request or response format for an HTTP API, it makes perfect sense not to include such indexing in GeoJSON. Of course, as a data interchange format it's lack of streamability is a problem, but that's orthogonal to our cloud-native concerns here (not to say that it can't be hackily streamed using things like [geojson-stream](https://github.com/node-geojson/geojson-stream); of course it's also worth mentioning [GeoJSONSeq](https://stevage.github.io/ndgeojson/), a new-line delimited format for streaming features).
+# As a data interchange format, like a request or response format for an HTTP API, it makes perfect sense not to include such indexing in GeoJSON. Of course, as a data interchange format its lack of streamability is a problem, but that's orthogonal to our cloud-native concerns here (not to say that it can't be hackily streamed using things like [geojson-stream](https://github.com/node-geojson/geojson-stream); of course it's also worth mentioning [GeoJSONSeq](https://stevage.github.io/ndgeojson/), a new-line delimited format for streaming features).
