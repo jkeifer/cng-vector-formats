@@ -1,189 +1,146 @@
-# Exploring Cloud-Native Geospatial Formats: A Hands-on Workshop for Vector Data
+# cng-vector-formats — Contributor Guide
 
-Dig into geospatial vector formats—including GeoJSON, WKT/WKB, and cloud-native
-GeoParquet—using Python to see in detail how vector features are stored in each
-format and to understand what cloud-native means for vector data.
+This is the **source/development branch** for *Exploring Cloud-Native
+Geospatial Formats: A Hands-on Workshop for Vector Data*. If you are here to
+**take the workshop**, you want the
+[`workshop` branch](https://github.com/jkeifer/cng-vector-formats/tree/workshop)
+instead — it contains the ready-to-run notebooks and setup instructions.
 
-[Slides for the 2025-11 FOSS4G workshops are here.](https://docs.google.com/presentation/d/1iddpQ7KSaSjUpxwy3SWzptsZsQNaD0AxyrL3KRB9H0s)
+This document is for people editing the workshop content.
 
-Using the [docker execution
-method](#running-locally-with-docker-recommended-for-local-executions) may be
-the best option due to the uncertainty of conference internet quality. But
-GitHub Codespaces can be a good fallback option for those that want/need a
-simpler solution.
+## About the workshop
 
-> [!WARNING]
-> Codespaces has been extremely slow and unstable in testing. Using docker or
-> `uv` is strongly recommended.
+The workshop digs into geospatial vector formats—including GeoJSON, WKT/WKB,
+and cloud-native GeoParquet—using Python to see in detail how vector features
+are stored in each format and to understand what cloud-native means for vector
+data. A strong goal is to be as hands-on with these formats as possible by
+working with them in Python without any specific geospatial format libraries,
+building up a working understanding of what common higher-level tooling does
+under the hood.
 
-## Workshop Overview
+[Slides for the 2025-11 FOSS4G workshop are here.](https://docs.google.com/presentation/d/1iddpQ7KSaSjUpxwy3SWzptsZsQNaD0AxyrL3KRB9H0s)
 
-Cloud-native geospatial is all the rage these days, and for good reason. As
-file sizes grow, layer counts increase, and analytical methods become more
-complex, the traditional download-to-the-desktop approach is quickly becoming
-untenable for many applications. It's no surprise then that users are turning
-to cloud-based tools to scale out their analyses, or that traditional tooling
-is adopting new ways of finding and accessing data from cloud-based sources.
-But as we transition away from opening whole files to now grabbing ranges of
-bytes off remote servers it seems all the more important to understand exactly
-how cloud-native data formats actually store data and what tools are doing to
-access it.
+## Repository model
 
-This workshop aims to dig into how cloud-native geospatial data formats are
-enabling new operational paradigms, with a particular focus on vector data
-formats. Unlike its raster workshop counterpart, this workshop will be a bit
-more experimental. Vector data formats tend towards greater complexity than
-raster formats, so exactly how deep we get into which topics will be dependent
-on the audience’s interests and the time available. Broad themes to explore
-might include:
+The workshop is authored here on `main` and published to a long-lived
+`workshop` branch. Keeping generated artifacts off `main` keeps its history
+clean and diffable.
 
-* GeoJSON: what is it, what does it represent, and how it is not cloud-native
-* Well-Known Text/Binary (WKT/WKB): how these vector formats work and why they
-  are important in GeoParquet
-* Parquet: how does parquet store data, how geo maps into that paradigm, and
-  what it takes to read some subset of data from a parquet file
-* Other cloud-native formats like FlatGeobuf, PMTiles, etc.
-* Practical considerations when using these formats
+| Branch     | Contents                                                         | Audience     |
+| ---------- | ---------------------------------------------------------------- | ------------ |
+| `main`     | Source: `src/*.py`, `scripts/`, config, this README               | Contributors |
+| `workshop` | Runnable notebooks + participant README, notes, run env           | Participants |
 
-The content of this workshop aims to not only be theoretical: a strong goal is
-to be as hands-on with these formats as possible by working with them in Python
-without any specific geospatial format libraries. We’ll look at interacting
-with object storage directly, to pull down files and fragments and inspect
-them, to build up working understanding of what common higher-level tooling
-does under the hood and abstracts away from users.
+Notebooks are **never committed on `main`** — they are generated on demand into
+a worktree of the `workshop` branch and committed there.
 
-### Prerequisites
+Pull requests should target `main`. Note that once `workshop` becomes the
+repository's default branch, GitHub will default new PRs to target `workshop` —
+retarget them to `main`.
 
-This workshop expects some familiarity with geospatial programming in Python
-and a basic understanding of the vector data model and its utility. Most of the
-notebook code is already provided, so any gaps in understanding don't
-necessarily prohibit completing the exercises. That said, some knowledge of the
-geospatial vector formats and tooling is quite helpful.
+## Notebook sources
 
-## Getting Started
+The source of truth for each notebook is a
+[Jupytext](https://jupytext.readthedocs.io/) `py:percent` file under `src/`:
 
-The interesting contents of this repo are, primarily, the Jupyter notebooks in
-the [`./notebooks`](./notebooks) directory. To facilitate easily running the
-notebooks in a properly-initialized environment, a docker compose file is
-provided. The project can also be run in a GitHub codespace without having to
-run anything locally. Alternately, one can set up their own python environment
-and run Jupyter without a dependency on docker.
+* `src/NN_<name>.py` — the full, working notebook, as readable Python with
+  `# %%` cell markers (clean diffs, no JSON noise, no cell outputs). Each file
+  is named for its exercise:
+  * `src/01_is-geojson-cloud-native.py` — GeoJSON and why it isn't cloud-native
+  * `src/02_the-well-knowns.py` — WKT/WKB by hand
+  * `src/03_reading-parquet-the-hard-way.py` — parquet/GeoParquet over HTTP
+    byte ranges, discovering the latest Overture Maps release via their static
+    STAC catalog
 
-Docker compose is the recommended approach if wanting to keep all services
-local (due to bad internet and/or concerns about leveraging GitHub serivces).
-GitHub codespaces are recommended if considering ease of use alone.
+From each `src/` file we generate:
 
-### Running locally with docker (recommended for local executions)
+* `notebooks/completed/NN_<name>.ipynb` — the completed notebook (Jupytext
+  render of the `.py`). Keeping the completed renders under
+  `notebooks/completed/` avoids colliding with the exercise notebooks and, on
+  the `workshop` branch, gives a tidy "answers live here" separation.
+* `notebooks/NN_<name>.ipynb` — the **exercise** notebook handed to attendees,
+  produced by
+  [`ipynb-scrubber`](https://pypi.org/project/ipynb-scrubber/), which clears
+  designated cells and omits answer cells.
+* `notes/NN_<name>.md` — notes extracted from cells tagged for note-taking.
 
-Using docker has the advantage of better constraining the execution
-environment, which is also set up automatically with the required dependencies.
+Both generation steps are configured by `[tool.ipynb-scrubber]` in
+`pyproject.toml` (input/output paths, tags) and `jupytext.toml` (the `src/` ↔
+`notebooks/completed/` pairing). Static assets referenced by the notebooks
+live in `notebooks/assets/` (tracked on `main`; the generator copies them
+along with the notebooks).
 
-Note that the instructions below were written with a MacOS/Linux environment in
-mind. Windows users will likely need to leverage WSL to access a Linux
-environment to run docker.
+### Editing
 
-To begin, clone this repo:
+Edit `src/NN_<name>.py` directly, or edit a completed notebook in Jupyter and
+sync it back to the `.py`:
 
 ```commandline
-git clone https://github.com/jkeifer/cng-vector-formats.git
-cd cng-vector-formats
+# after editing a notebook in Jupyter, sync it back to src/:
+uv run jupytext --sync src/*.py
 ```
 
-Ensure the docker daemon or an equivalent is running via whatever mechanism is
-preferred (on Linux via the docker daemon or podman; on MacOS via Docker
-Desktop, colima, podman, OrbStack, or others), then use `docker compose` to
-`up` the project:
+## Building & publishing
+
+Two small, composable scripts handle staging content onto the `workshop`
+branch. The generic `worktree.py` prepares (or reuses) a worktree for a branch;
+you then generate content into it, review, and commit yourself. Nothing is
+committed or pushed automatically.
 
 ```commandline
-docker compose up
+# 1. Check out the workshop branch as a worktree at ./workshop
+uv run scripts/worktree.py workshop
+
+# 2. Generate the notebooks + notes into that worktree
+uv run scripts/generate_notebooks.py --output-dir ./workshop
+
+# 3. Review, then commit/push from the worktree
+cd workshop
+git add -A && git commit -m "Update notebooks" && git push
 ```
 
-This will start up the Jupyter container within docker in the foreground. If
-preferring to run compose in the background, add the detach option to the
-compose command via the `-d` flag.
+`generate_notebooks.py` defaults `--output-dir` to the repo root, so a bare
+`uv run scripts/generate_notebooks.py` regenerates the notebooks in place
+(handy for a quick local check). The generated notebooks are gitignored on
+`main`.
 
-JupyterLab will be started with no authentication, running on port 8888 (by
-default; use the env var `JUPYTER_PORT` to change it if that port is already
-taken on your machine). Open a web browser and browse to
-[`http://127.0.0.1:8888`](http://127.0.0.1:8888) to open the JupyterLab
-interface. Select a notebook from the `notebooks` directory and work through
-it.
+The `workshop` branch maintains its **own** participant-facing README, notes,
+and runtime environment (a trimmed `pyproject.toml` with runtime deps only,
+plus its `uv.lock`, Dockerfile, `compose.yml`, and `.devcontainer`). Those are
+edited on the `workshop` branch, not copied from `main`; the stage script only
+writes the notebooks and notes.
 
-### Running locally using `uv`
-
-This approach is less recommended as it is more subject to local environment
-differences than the docker-based approaches. But it does have the benefit of
-not requiring docker as a dependency. For users on Linux or MacOS that have
-experience managing a python environment, this may quite honestly be the best
-option.
-
-Note that the instructions below were written with a MacOS/Linux environment in
-mind. Windows users will likely need to leverage something like [git for
-Windows](https://gitforwindows.org/) and the included Git BASH tool to follow
-along (WSL is also likely a viable solution to get a Linux environment on a
-Windows machine).
-
-To get started, clone this repository and start up JupyterLab using `uv run`.
-Users will need to have `uv` installed to use this option.
+## Development environment
 
 ```commandline
-git clone https://github.com/jkeifer/cng-vector-formats.git
-cd cng-vector-formats
-uv run jupyter lab
+uv sync
 ```
 
-The `uv run jupyter lab` will create a virtual environment with a compatible
-version of python, install all dependencies, then launch JupyterLab. A web
-browser window should automatically be launched with this project loaded.
-Select a notebook from the `notebooks` directory and work through it.
+installs everything, including the dev tooling (Jupytext, ipynb-scrubber). Run
+Jupyter with `uv run jupyter lab`.
 
-### Running in GitHub Codespaces
+After syncing, install the git hooks with `uv run prek install`. The hooks run
+ruff lint and format, with the tools coming from the dev dependency group; run
+them manually with `uv run prek run --all-files`.
 
-This method does not require any environment setup, repo cloning, or having to
-execute any code locally. However, it does depend on an external, web-based
-service, which may not be ideal in environments with unknown internet quality
-(i.e., conferences). Codespaces also sometimes have instability or weirdness
-that does not occur when executing locally. But the fact that all this option
-requires is a GitHub account and a web browser means it can be a great solution
-for many users.
+## Checks / CI
 
-> [!WARNING]
-> Again, for this workshop, testing has proven codespaces to be unstable.
+CI (`.github/workflows/ci.yml`) runs on pull requests and on pushes to `main`.
+It runs the prek hooks, then generates all notebooks from `src/` and executes
+each completed notebook end to end. Notebook 03 reads live Overture Maps
+parquet over HTTP (no credentials needed); its hctef byte cache is persisted
+between runs with `actions/cache`, so reruns skip most of the network I/O. The
+local equivalents:
 
-To use GitHub Codespaces, first login to GitHub. Then, browse to [the project
-repo in Github](https://github.com/jkeifer/cng-vector-formats). There, click
-the green `<> Code` dropdown button, select the `Codespaces` tab in the
-dropdown menu, then click the button to add a new codespace from the `main`
-branch.
-
-The codespace will launch in a new browser tab, running the web version of VS
-Code. The notebooks can be opened and executed directly in this interface. The
-notebook kernel will need to be selected to execute code; choose the `.venv`
-kernel from the existing Python Environments option.
-
-Codespaces also have experimental JupyterLab support. For users that might want
-to try this, wait for the codespace to fully initialize. Then, go back to the
-repo in GitHub and open the codespaces dropdown menu (you will likely need to
-refresh the page). You should see the codespace listed, and a button with three
-dots `...` next to it. Click that button to open a menu with more actions for
-the codespace, then select "Open in JupyterLab". Select a notebook from the
-`notebooks` directory and work through it.
-
-### Run locally using `pip` and manual virtual environments
-
-This option is discouraged. But for users that want to use this option, they
-are welcome to do so installing dependencies using the `requirements.txt` file
-via pip. Leveraging a virtual environment is _strongly_ recommended.
-
-## Untrusted Notebooks
-
-If when running a notebook certain cell outputs (folium maps, particularly) do
-not display and instead show an error about the notebook not being trusted,
-press CMD+Shift+P / CTRL+Shift+P to bring up the command pallet, then type
-"Trust Notebook". Select the command with that name to trust the current
-notebook.
+```commandline
+uv run prek run --all-files
+uv run scripts/generate_notebooks.py
+uv run jupyter execute notebooks/completed/NN_<name>.ipynb   # for each of 01, 02, 03
+```
 
 ## Presentation History
+
+Keep this table in sync with the copy in the `workshop` branch README.
 
 ### Origin
 
