@@ -26,22 +26,38 @@ package = false
 [dependency-groups]
 dev = [
     "ipynb-scrubber>=0.4.1",
+    "jupytext>=1.19.4",
+    "prek>=0.4.8",
+    "ruff>=0.15.20",
 ]
+
+[tool.ruff]
+# `display` is an IPython builtin available in every notebook cell.
+builtins = ["display"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint.per-file-ignores]
+# The notebook sources deliberately import modules mid-file, where the
+# narrative introduces them (E402), and use top-level await, which is valid
+# in the IPython kernel's event loop (F704).
+"src/*.py" = ["E402", "F704"]
 
 [tool.ipynb-scrubber.options]
 clear-text = ""
 
 [[tool.ipynb-scrubber.files]]
-input = "notebooks/01_completed.ipynb"
+input = "notebooks/completed/01_is-geojson-cloud-native.ipynb"
 output = "notebooks/01_is-geojson-cloud-native.ipynb"
 notes-file = "notes/01_is-geojson-cloud-native.md"
 
 [[tool.ipynb-scrubber.files]]
-input = "notebooks/02_completed.ipynb"
+input = "notebooks/completed/02_the-well-knowns.ipynb"
 output = "notebooks/02_the-well-knowns.ipynb"
 notes-file = "notes/02_the-well-knowns.md"
 
 [[tool.ipynb-scrubber.files]]
-input = "notebooks/03_completed.ipynb"
+input = "notebooks/completed/03_reading-parquet-the-hard-way.ipynb"
 output = "notebooks/03_reading-parquet-the-hard-way.ipynb"
 notes-file = "notes/03_reading-parquet-the-hard-way.md"
