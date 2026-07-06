@@ -70,6 +70,7 @@ os.environ.setdefault('HCTEF_CACHE_IMMUTABLE', '1')
 # %%
 import asyncio
 import json
+import time
 
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
@@ -81,6 +82,7 @@ from urllib.parse import urljoin
 import aiohttp
 
 from devtools import pprint
+from IPython.display import Pretty
 from por_que import AsyncHttpFile, FileMetadata, ParquetFile
 from shapely import (
     intersection,
@@ -291,10 +293,33 @@ parquet_urls[:3]
 # `ParquetFile` is a class that represents the entire physical and logical structure of a parquet file. This includes `FileMetadata`, but also all data page locations and metadata. `ParquetFile` and its nested `DataPage` objects allow reading data from the file. `ParquetFile.from_reader()`, similar to above, will parse the full structure and metadata from a passed in readable filelike object.
 #
 # Let's see how we can use `AsyncHttpFile` with `ParquetFile` and some of what the latter exposes. Note that creating the `ParquetFile` instances has to make many random reads within the file, so this is not a fast process, especially over the network (though thanks to the byte cache we set up at the top, re-running it is nearly instant).
+#
+# Because these parses can take a while, `por-que` accepts a `progress` callback: it calls the function with the current phase of the parse and how far along it is. We can use that with an updating IPython display to get a live one-line status without spewing output. Let's make a small factory so every slow parse in this notebook can have its own status line (the time-based throttle just keeps us from flooding the kernel's messaging when the parse is fast).
+
+
+# %%
+def parquet_progress():
+    status = display(Pretty('starting...'), display_id=True)
+    last = 0.0
+
+    def callback(phase, done, total):
+        nonlocal last
+        now = time.monotonic()
+        if done < total and now - last < 0.2:
+            return
+        last = now
+        status.update(Pretty(f'{phase}: {done:_} of {total:_}'))
+
+    return callback
+
 
 # %%
 async with AsyncHttpFile(parquet_urls[0]) as hf:
-    pf = await ParquetFile.from_reader(hf, parquet_urls[0])
+    pf = await ParquetFile.from_reader(
+        hf,
+        parquet_urls[0],
+        progress=parquet_progress(),
+    )
 
 
 # %%
@@ -353,6 +378,8 @@ json.loads([kv for kv in pf.metadata.key_value_metadata if kv.key == 'geo'][0].v
 #
 # * **Column projection.** A full parse of one of these footers retains roughly 24 MB of parsed metadata per file--multiply by every file in the dataset and the kernel dies. But the filtering stages ahead only need the four bbox columns, and `FileMetadata.from_reader()` accepts a `columns=` projection that skips parsing all the column-chunk metadata we don't care about, retaining ~10x less memory (the schema and the key/value `geo` metadata always parse fully, so our file-level bboxes are unaffected).
 # * **A parsed-metadata cache.** The network bytes are already covered by the disk cache, but the parse itself is CPU-bound and takes a few minutes for the whole dataset. So immediately after building `fms`, we persist it to `fms.json`; the guard in the cell below reloads it, making a re-run (or a crash recovery) cost seconds instead of minutes. The dump format can change between `por-que` versions, so we store the version alongside and ignore the cache on mismatch.
+#
+# And since this is the longest-running cell in the notebook, we'll keep ourselves sane with a live progress line: here `por-que`'s per-file progress callback is the wrong granularity (hundreds of files parsing concurrently), so instead we wrap each file's parse in a small coroutine that bumps a completed-files counter as it finishes.
 
 # %%
 BBOX_COLS = ['bbox.xmin', 'bbox.ymin', 'bbox.xmax', 'bbox.ymax']
@@ -374,14 +401,27 @@ len(fms)
 
 # %%
 if not fms:
+    scanned = 0
+    scan_progress = display(
+        Pretty(f'{scanned} of {len(parquet_urls)} files scanned'),
+        display_id=True,
+    )
+
+    async def scan_file(f):
+        global scanned
+        fm = await FileMetadata.from_reader(f, columns=BBOX_COLS)
+        scanned += 1
+        scan_progress.update(
+            Pretty(f'{scanned} of {len(parquet_urls)} files scanned'),
+        )
+        return fm
+
     fm_tasks = []
     async with AsyncExitStack() as stack:
         for url in parquet_urls:
             f = await stack.enter_async_context(AsyncHttpFile(url))
             total_bytes += f.size
-            fm_tasks.append(
-                asyncio.create_task(FileMetadata.from_reader(f, columns=BBOX_COLS)),
-            )
+            fm_tasks.append(asyncio.create_task(scan_file(f)))
         fms = dict(zip(parquet_urls, await asyncio.gather(*fm_tasks)))
 
     FMS_CACHE.write_text(
@@ -588,7 +628,14 @@ async with AsyncExitStack() as stack:
     for url in urls_that_intersect:
         f = await stack.enter_async_context(AsyncHttpFile(url))
         pf_tasks.append(
-            asyncio.create_task(ParquetFile.from_reader(f, url, columns=SEARCH_COLS)),
+            asyncio.create_task(
+                ParquetFile.from_reader(
+                    f,
+                    url,
+                    columns=SEARCH_COLS,
+                    progress=parquet_progress(),
+                ),
+            ),
         )
     pfs = dict(zip(urls_that_intersect, await asyncio.gather(*pf_tasks)))
 
