@@ -8,12 +8,12 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "aiohttp>=3.13.1",
     "devtools>=0.12.2",
     "folium>=0.20.0",
     "jupyterlab>=4.4.6",
-    "por-que>=0.2.4",
+    "por-que>=0.3.3",
     "pyarrow>=21.0.0",
-    "s3fs>=2025.7.0",
     "shapely>=2.1.1",
 ]
 
