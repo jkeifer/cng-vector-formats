@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync
+      - name: Run prek hooks
+        run: uv run prek run --all-files
+
+  notebooks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Notebook 03 reads Overture parquet over HTTP through hctef, which
+      # persists every fetched byte range here. Restoring the cache lets
+      # reruns skip most of the network I/O; the key is unique per run so
+      # the post step always saves the (possibly updated) cache, and
+      # restore-keys picks up the most recent prior run's cache.
+      HCTEF_CACHE_DIR: ${{ github.workspace }}/.hctef-cache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+      - name: Restore hctef byte cache
+        uses: actions/cache@v4
+        with:
+          path: .hctef-cache
+          key: hctef-cache-${{ github.run_id }}
+          restore-keys: |
+            hctef-cache-
+      - name: Install dependencies
+        run: uv sync
+      - name: Generate notebooks
+        run: uv run scripts/generate_notebooks.py
+      - name: Execute notebook 01
+        run: uv run jupyter execute notebooks/completed/01_is-geojson-cloud-native.ipynb
+      - name: Execute notebook 02
+        run: uv run jupyter execute notebooks/completed/02_the-well-knowns.ipynb
+      - name: Execute notebook 03
+        run: uv run jupyter execute notebooks/completed/03_reading-parquet-the-hard-way.ipynb
