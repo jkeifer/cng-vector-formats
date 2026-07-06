@@ -53,7 +53,7 @@
 #
 #   * WKT: `POLYGON((0 0, 4 0, 4 4, 0 4, 0 0))`
 #
-# Notice: geometry type keyword, then coordinates in parentheses. No nesting, no attributes—just the geometry. In both cases notice the coordinate pair order is `X, Y`, which in WGS84 (EPSG:4326) makes these coordinates `longitude, latitude` order. Notably, WKT can express coordinates in any CRS: unlike GeoJSON post-RFC 7946, it is not limited to just WGS84 coordinates. The CRS reference must be supplied separately, typically Spatial Reference Identifier (SRID) metadata or external documentation; OGC defines two WKT formats for CRS representations, which are not to be confused with the WKT format for geometries we are discussing here.
+# Notice: geometry type keyword, then coordinates in parentheses. No nesting, no attributes—just the geometry. In both cases notice the coordinate pair order is `X, Y`, which in WGS84 (EPSG:4326) makes these coordinates `longitude, latitude` order. Notably, WKT can express coordinates in any CRS: unlike GeoJSON post-RFC 7946, it is not limited to just WGS84 coordinates. The CRS reference must be supplied separately, typically via Spatial Reference Identifier (SRID) metadata or external documentation; OGC defines two WKT formats for CRS representations, which are not to be confused with the WKT format for geometries we are discussing here.
 #
 # ### WKB
 #
@@ -87,7 +87,7 @@
 #
 # ## Is this a CNG format? Why do we care?
 #
-# Great question! No, this WKT and WKB are decidedly not CNG formats. They're not really data formats themselves, they just define how to encode geometries in text and binary formats, respectively. So we don't generally use WKT or WKB by themselves, but as a way to represent a geometry in a larger data object or file. This is exactly why we need to talk about them, because GeoParquet (which we'll look at in the next exercise) uses WKB encoding to store geometries. This exercise is really just a necessary prerequisite to help us make the jump from the easy-and-human-readable-but-not-CNG GeoJSON format to the much more complex GeoParquet format by preparing us for what we'll be reading out of a GeoParquet's geometry column.
+# Great question! No, WKT and WKB are decidedly not CNG formats. They're not really data formats themselves, they just define how to encode geometries in text and binary formats, respectively. So we don't generally use WKT or WKB by themselves, but as a way to represent a geometry in a larger data object or file. This is exactly why we need to talk about them, because GeoParquet (which we'll look at in the next exercise) uses WKB encoding to store geometries. This exercise is really just a necessary prerequisite to help us make the jump from the easy-and-human-readable-but-not-CNG GeoJSON format to the much more complex GeoParquet format by preparing us for what we'll be reading out of a GeoParquet's geometry column.
 
 # %% [markdown]
 # ## The exercise
@@ -105,7 +105,7 @@ from shapely import from_wkb as shapely_from_wkb, wkt as shapely_wkt
 # Now, let's start by dropping our geometry from our feature from exercise 1 here so we have a GeoJSON-format geometry to convert to WKT.
 
 # %%
-#| scrub-note: cell0 | geom_str = '''PASTE YOUR GEOJSON GEOMETRY HERE'''
+#| scrub-note: cell0 | geom_str = """PASTE YOUR GEOJSON GEOMETRY HERE"""
 geom_str = """{
     "coordinates": [[
         [174.76536299052356, -36.85325730119731],
@@ -140,7 +140,7 @@ shapely_wkt.loads(wkt)
 #
 # Our next step is to convert our WKT into WKB. We initially converted our GeoJSON to WKT because WKT is much closer to WKB in format, so we should be able to take our WKT and more or less encode it directly to WKB manually. We'll use the python `struct` module to help us pack native Python values into the WKB binary structure, which should help with the hard parts.
 #
-# To proceed, need to define some variables:
+# To proceed, we need to define some variables:
 #
 # * `endianness`: the endianness we want to use. Set this to `0` for big, `1` for little.
 # * `geom_type`: the integer ID of our geometry type.
@@ -164,7 +164,7 @@ ring_points = [
 # %% [markdown]
 # #### A quick note about `struct`
 #
-# If you haven't used `struct` before, it is a Python stdlib module to assist with packing an unpacking binary values. Imagine a byte string encoding several integers: struct can unpack them into native Python types. It can also pack native Python types into a byte string. Here are some examples:
+# If you haven't used `struct` before, it is a Python stdlib module to assist with packing and unpacking binary values. Imagine a byte string encoding several integers: struct can unpack them into native Python types. It can also pack native Python types into a byte string. Here are some examples:
 
 # %%
 # packing four Python int type values into uint32 values
