@@ -29,6 +29,7 @@ import argparse
 import json
 import subprocess
 import sys
+import tomllib
 
 from dataclasses import replace
 from pathlib import Path
@@ -65,8 +66,28 @@ def _entry_paths(entry: FileEntry) -> tuple[Path, ...]:
     return tuple(p for p in paths if p is not None)
 
 
+def _load_keep(pyproject: Path) -> tuple[str, ...]:
+    """Paths under the managed trees that are inputs, not generated output.
+
+    Assets are the motivating case: nothing in the scrubber config claims
+    notebooks/assets/, so without this --prune deletes the screenshots.
+    """
+    with pyproject.open('rb') as f:
+        data = tomllib.load(f)
+
+    keep = data.get('tool', {}).get('generate-notebooks', {}).get('keep', [])
+    if not isinstance(keep, list) or not all(isinstance(k, str) for k in keep):
+        raise SystemExit(
+            'error: [tool.generate-notebooks] keep must be a list of strings',
+        )
+    return tuple(keep)
+
+
 def _stale_paths(
-    entries: list[FileEntry], output_dir: Path, roots: set[str]
+    entries: list[FileEntry],
+    output_dir: Path,
+    roots: set[str],
+    keep: tuple[str, ...] = (),
 ) -> list[Path]:
     """Files under the managed trees that the config doesn't claim.
 
@@ -74,14 +95,23 @@ def _stale_paths(
     about to write is a leftover from an older config -- a renamed notebook, or
     a notes-file for a notebook that no longer has any notes. Nothing removes
     those otherwise, and when the output dir is a published worktree they ship.
+
+    `keep` carves out the exceptions: paths that live under those trees but are
+    inputs rather than output.
     """
     expected = {p.resolve() for entry in entries for p in _entry_paths(entry)}
+    kept = [(output_dir / k).resolve() for k in keep]
+
+    def is_kept(path: Path) -> bool:
+        resolved = path.resolve()
+        return any(resolved == k or k in resolved.parents for k in kept)
+
     return [
         path
         for root in sorted(roots)
         if (output_dir / root).is_dir()
         for path in sorted((output_dir / root).rglob('*'))
-        if path.is_file() and path.resolve() not in expected
+        if path.is_file() and path.resolve() not in expected and not is_kept(path)
     ]
 
 
@@ -164,7 +194,7 @@ def generate(output_dir: Path, prune: bool = False) -> bool:
     }
     entries = [_rebase(configured, output_dir) for configured in config.files]
 
-    stale = _stale_paths(entries, output_dir, roots)
+    stale = _stale_paths(entries, output_dir, roots, _load_keep(PYPROJECT))
     if stale and prune:
         _prune_stale(stale, output_dir, roots)
         stale = []
