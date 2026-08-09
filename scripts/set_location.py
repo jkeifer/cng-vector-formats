@@ -68,9 +68,13 @@ def sites(loc: Location) -> list[Site]:
         Site('sample_pair', one, d['sample_pair']),
         Site('sample_pair_bytes', one, f'{d["sample_pair_bytes"]} bytes'),
         Site('ring_count', one, f'just {d["ring_count"]}'),
-        Site('city', one, loc.city),
-        Site('region', one, loc.region),
-        Site('macro', one, loc.macro),
+        # Carry the surrounding prose. A bare name is not safe to match on: a
+        # feature collection's properties may repeat it (Sacramento's
+        # buildingName is "Sheraton Grand Sacramento Hotel"), which would make
+        # the name occur twice in the file once geojson_str is substituted.
+        Site('city', one, f'all buildings in {loc.city}'),
+        Site('region', one, f'Or {loc.region}'),
+        Site('macro', one, f'Or all of {loc.macro}'),
         Site('geom_str', two, format_geom_str(loc)),
         Site('wkt', two, format_wkt(loc)),
         Site('ring_points', two, format_ring_points(loc)),
@@ -84,11 +88,18 @@ def sites(loc: Location) -> list[Site]:
     ]
 
 
-def verify(repo: Path, loc: Location) -> list[str]:
-    """Errors describing any site that is not present exactly once."""
-    errors: list[str] = []
-    texts = {name: (repo / 'src' / name).read_text() for name in SRC_FILES.values()}
+def read_sources(repo: Path) -> dict[str, str]:
+    """The current text of every source file, keyed by filename."""
+    return {name: (repo / 'src' / name).read_text() for name in SRC_FILES.values()}
 
+
+def verify_sites(texts: dict[str, str], loc: Location) -> list[str]:
+    """Errors describing any site not present exactly once in `texts`.
+
+    Takes the text rather than reading it, so a retarget can check what it is
+    about to write while it is still only in memory.
+    """
+    errors: list[str] = []
     for site in sites(loc):
         found = texts[site.filename].count(site.text)
         if found != 1:
@@ -97,6 +108,58 @@ def verify(repo: Path, loc: Location) -> list[str]:
                 f'{site.name!r}, found {found}',
             )
     return errors
+
+
+def verify_screenshot(repo: Path, loc: Location) -> list[str]:
+    """Errors if the active screenshot is missing or is the wrong image.
+
+    Exercise 1 embeds this path, so a missing or stale file renders a broken
+    image in the notebook without anything else noticing.
+    """
+    active = repo / ACTIVE_SCREENSHOT
+    if not active.is_file():
+        return [f'{ACTIVE_SCREENSHOT}: missing (expected a copy of {loc.screenshot})']
+    if not loc.screenshot.is_file():
+        return [f'{loc.screenshot}: missing; cannot check the active screenshot']
+    if active.read_bytes() != loc.screenshot.read_bytes():
+        return [f'{ACTIVE_SCREENSHOT}: does not match {loc.screenshot}']
+    return []
+
+
+def verify(repo: Path, loc: Location) -> list[str]:
+    """Errors describing anything that does not match `loc`."""
+    return verify_sites(read_sources(repo), loc) + verify_screenshot(repo, loc)
+
+
+def place_screenshot(repo: Path, loc: Location) -> None:
+    """Copy a location's screenshot to the path exercise 1 embeds."""
+    active = repo / ACTIVE_SCREENSHOT
+    active.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(loc.screenshot, active)
+    print(f'{ACTIVE_SCREENSHOT}: {loc.screenshot.name}', file=sys.stderr)
+
+
+def rewrite_recorded_slug(text: str, slug: str) -> str:
+    """The pyproject text with the recorded slug replaced.
+
+    Raises if the line is not found exactly once. The pattern is narrower than
+    TOML allows (single quotes and extra spacing are all valid and would not
+    match), so a silent no-op here would report success while leaving the
+    recorded location stale.
+    """
+    new, count = re.subn(
+        r'^location = ".*"$',
+        f'location = "{slug}"',
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    if count != 1:
+        raise SystemExit(
+            'error: expected exactly 1 `location = "..."` line in '
+            f'pyproject.toml, matched {count}; nothing was modified.',
+        )
+    return new
 
 
 def retarget(repo: Path, current: Location, target: Location) -> None:
@@ -109,9 +172,7 @@ def retarget(repo: Path, current: Location, target: Location) -> None:
 
     # Render everything before writing anything, so a failure part-way through
     # cannot leave src/ half-retargeted.
-    updated: dict[str, str] = {}
-    for name in SRC_FILES.values():
-        updated[name] = (repo / 'src' / name).read_text()
+    updated = read_sources(repo)
 
     for old, new in zip(sites(current), sites(target), strict=True):
         assert old.name == new.name
@@ -120,24 +181,32 @@ def retarget(repo: Path, current: Location, target: Location) -> None:
         updated[old.filename] = updated[old.filename].replace(old.text, new.text, 1)
         print(f'{old.filename}: {old.name}', file=sys.stderr)
 
+    # The post-condition, checked while the result is still only in memory: a
+    # replacement that lands somewhere the next verify cannot find exactly once
+    # would wedge the repo, since every later retarget starts by verifying.
+    errors = verify_sites(updated, target)
+    if errors:
+        raise SystemExit(
+            f'error: retargeting to {target.slug!r} would produce sources that '
+            'do not verify; nothing was modified.\n  ' + '\n  '.join(errors),
+        )
+
+    # `Location.load` checks the key is present, not that the file is there.
+    if not target.screenshot.is_file():
+        raise SystemExit(
+            f'error: {target.slug!r} names a screenshot that does not exist: '
+            f'{target.screenshot}; nothing was modified.',
+        )
+
+    pyproject = repo / 'pyproject.toml'
+    recorded = rewrite_recorded_slug(pyproject.read_text(), target.slug)
+
+    # Everything is validated; now write.
     for name, text in updated.items():
         (repo / 'src' / name).write_text(text)
 
-    active = repo / ACTIVE_SCREENSHOT
-    active.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(target.screenshot, active)
-    print(f'{ACTIVE_SCREENSHOT}: {target.screenshot.name}', file=sys.stderr)
-
-    pyproject = repo / 'pyproject.toml'
-    pyproject.write_text(
-        re.sub(
-            r'^location = ".*"$',
-            f'location = "{target.slug}"',
-            pyproject.read_text(),
-            count=1,
-            flags=re.MULTILINE,
-        ),
-    )
+    place_screenshot(repo, target)
+    pyproject.write_text(recorded)
 
 
 def recorded_slug(repo: Path) -> str:
@@ -185,6 +254,16 @@ def main() -> int:
 
     target = load(args.slug)
     if target.slug == current.slug:
+        # Still (re)place the screenshot: this is the only path that can
+        # restore it for the recorded location, and returning early here would
+        # make an absent or stale image unfixable without a detour through
+        # another location.
+        if not target.screenshot.is_file():
+            raise SystemExit(
+                f'error: {target.slug!r} names a screenshot that does not '
+                f'exist: {target.screenshot}',
+            )
+        place_screenshot(REPO_ROOT, target)
         print(f'already set to {current.slug!r}', file=sys.stderr)
         return 0
 
