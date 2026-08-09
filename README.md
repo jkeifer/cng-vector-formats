@@ -92,7 +92,23 @@ Afterwards, regenerate and **execute notebook 03**: the script cannot know
 whether the new building is actually found in Overture, or how many row groups
 match. That needs a real run.
 
-To add a location, drop a `<slug>.toml` and its screenshot in `locations/`.
+To add a location, copy `locations/auckland.toml` to `locations/<slug>.toml`
+and drop its geojson.io screenshot in `locations/` alongside it. The file name's
+stem is the slug. Six keys are required, all of them:
+
+| Key                  | What it is                                                                     |
+| -------------------- | ------------------------------------------------------------------------------ |
+| `building_name`      | The building, as exercise 3's prose names it                                    |
+| `city`               | Fills "all buildings in *city*"                                                 |
+| `region`             | The next step out — "Or *region*"                                               |
+| `macro`              | The step out from there — "Or all of *macro*"                                   |
+| `screenshot`         | The geojson.io screenshot, relative to `locations/` (or an absolute path)       |
+| `feature_collection` | The FeatureCollection, pasted verbatim from geojson.io, in a `'''` TOML string  |
+
+The collection must hold exactly one feature whose geometry is a `Polygon`
+with a single ring — one building, no holes, no MultiPolygon. Loading rejects
+anything else, since the exercises hand-encode that one ring. Everything else
+is derived, so nothing else needs writing down.
 
 ### Editing
 

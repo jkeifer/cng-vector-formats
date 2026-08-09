@@ -217,9 +217,11 @@ def test_derived_values_for_auckland():
 
 
 def test_derived_values_for_hiroshima():
+    """The non-ASCII location: 700 characters, 712 bytes."""
     loc = location.Location.load(LOCATIONS / 'hiroshima.toml')
     d = location.derived(loc)
-    assert d['geojson_bytes'] == '707'
+    assert len(loc.feature_collection) == 700
+    assert d['geojson_bytes'] == '712'
     assert d['ring_count'] == '5'
     assert d['sample_pair'] == '[132.469393,34.3947249],'
     assert d['sample_pair_bytes'] == '24'

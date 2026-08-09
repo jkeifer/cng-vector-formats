@@ -1,4 +1,9 @@
 # FOSS4G 2026, Hiroshima. The venue is the RCC Bunka Center.
+#
+# `building_name` is the romanisation, because it feeds English prose in
+# exercise 3. The buildingName property inside the feature collection is the
+# name Overture actually stores, so exercise 3 prints what the reader pasted in
+# exercise 1 rather than something that merely resembles it.
 building_name = "RCC Bunka Center"
 city          = "Hiroshima"
 region        = "Honshu"
@@ -12,7 +17,7 @@ feature_collection = '''
     {
       "type": "Feature",
       "properties": {
-        "buildingName": "RCC Bunka Center",
+        "buildingName": "RCC文化センター",
         "floorCount": 7
       },
       "geometry": {
