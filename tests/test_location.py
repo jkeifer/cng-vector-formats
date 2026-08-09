@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 import location
+import set_location
 
 REPO = Path(__file__).resolve().parent.parent
 LOCATIONS = REPO / 'locations'
@@ -22,7 +23,22 @@ def _payload(pattern: str, text: str) -> str:
 
 
 def auckland() -> location.Location:
+    """A specific location, for assertions about that location's own data."""
     return location.Location.load(LOCATIONS / 'auckland.toml')
+
+
+def recorded() -> location.Location:
+    """Whichever location `src/` currently contains.
+
+    Deliberately separate from `auckland()`. The tests below that read `src/`
+    assert that the formatters reproduce what is actually there, which is a
+    location-independent contract; naming a location in them instead only
+    happened to hold while that location was the one set, and broke the moment
+    the workshop was retargeted.
+    """
+    return location.Location.load(
+        LOCATIONS / f'{set_location.recorded_slug(REPO)}.toml'
+    )
 
 
 def test_load_reads_the_names():
@@ -57,14 +73,14 @@ def test_feature_collection_has_no_trailing_newline():
 
 def test_geojson_str_matches_the_current_source():
     text = (REPO / 'src' / '01_is-geojson-cloud-native.py').read_text()
-    assert location.format_geojson_str(auckland()) == _payload(
+    assert location.format_geojson_str(recorded()) == _payload(
         r'geojson_str = """(.*?)"""', text
     )
 
 
 def test_geom_str_matches_the_current_source():
     text = (REPO / 'src' / '02_the-well-knowns.py').read_text()
-    assert location.format_geom_str(auckland()) == _payload(
+    assert location.format_geom_str(recorded()) == _payload(
         r'geom_str = """(.*?)"""', text
     )
 
@@ -72,19 +88,19 @@ def test_geom_str_matches_the_current_source():
 def test_wkt_matches_the_current_source():
     text = (REPO / 'src' / '02_the-well-knowns.py').read_text()
     literal = re.search(r"^wkt = '(POLYGON.*?)'$", text, re.MULTILINE).group(1)
-    assert location.format_wkt(auckland()) == literal
+    assert location.format_wkt(recorded()) == literal
 
 
 def test_ring_points_matches_the_current_source():
     text = (REPO / 'src' / '02_the-well-knowns.py').read_text()
     literal = re.search(r'ring_points = \[\n(.*?)\n\]', text, re.DOTALL).group(1)
-    assert location.format_ring_points(auckland()) == literal
+    assert location.format_ring_points(recorded()) == literal
 
 
 def test_geom_pretty_matches_the_current_source():
     text = (REPO / 'src' / '03_reading-parquet-the-hard-way.py').read_text()
     literal = _payload(r'geom = json\.loads\("""(.*?)"""\)', text)
-    assert location.format_geom_pretty(auckland()) == literal
+    assert location.format_geom_pretty(recorded()) == literal
 
 
 def test_every_location_parses():
@@ -117,7 +133,7 @@ def test_derived_values_for_hiroshima():
 
 
 def test_derived_values_appear_verbatim_in_the_sources():
-    d = location.derived(auckland())
+    d = location.derived(recorded())
     one = (REPO / 'src' / '01_is-geojson-cloud-native.py').read_text()
     two = (REPO / 'src' / '02_the-well-knowns.py').read_text()
     assert one.count(f'{d["geojson_bytes"]} bytes') == 1
