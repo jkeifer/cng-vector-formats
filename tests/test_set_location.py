@@ -11,6 +11,38 @@ REPO = Path(__file__).resolve().parent.parent
 
 SLUGS = sorted(p.stem for p in (REPO / 'locations').glob('*.toml'))
 
+# The location the real repo currently records. Every test that starts from a
+# copy of src/ must work from this rather than a hardcoded slug: src/ contains
+# whichever location was last set, and a test that assumes otherwise either
+# fails spuriously or -- far worse -- drives a real retarget. See
+# `_real_repo_is_untouched`.
+RECORDED = set_location.recorded_slug(REPO)
+
+# Any other location, for retargeting away and back.
+OTHER = next(slug for slug in SLUGS if slug != RECORDED)
+
+# The files a retarget writes. Guarded below.
+TRACKED = [
+    Path('pyproject.toml'),
+    *(Path('src') / n for n in set_location.SRC_FILES.values()),
+]
+
+
+@pytest.fixture(autouse=True, scope='module')
+def _real_repo_is_untouched():
+    """Fail if anything in this module writes to the real repository.
+
+    `main()` defaults to `set_location.REPO_ROOT`, so a test that calls it
+    without redirecting that constant retargets the developer's checkout (and
+    CI's) for real. That happened once; this makes it impossible to miss.
+    """
+    before = {path: (REPO / path).read_bytes() for path in TRACKED}
+    yield
+    changed = [
+        str(path) for path, data in before.items() if (REPO / path).read_bytes() != data
+    ]
+    assert not changed, f'the test suite modified the real repository: {changed}'
+
 
 def _fixture_repo(tmp_path: Path) -> Path:
     """A throwaway copy of the parts of the repo the script touches."""
@@ -27,21 +59,36 @@ def _fixture_repo(tmp_path: Path) -> Path:
     return repo
 
 
+def _isolate(monkeypatch, repo: Path) -> Path:
+    """Point the module's repo-wide constants at a throwaway copy."""
+    monkeypatch.setattr(set_location, 'REPO_ROOT', repo)
+    monkeypatch.setattr(set_location, 'LOCATIONS_DIR', repo / 'locations')
+    return repo
+
+
 def _load(slug: str) -> location.Location:
     return location.Location.load(REPO / 'locations' / f'{slug}.toml')
 
 
+def _break_the_wkt(repo: Path) -> str:
+    """Replace the recorded location's WKT literal with a bogus one."""
+    path = repo / 'src' / set_location.SRC_FILES['02']
+    text = path.read_text()
+    wkt = location.format_wkt(_load(RECORDED))
+    assert wkt in text, 'the fixture does not contain the recorded WKT'
+    broken = text.replace(wkt, 'POLYGON((0 0))')
+    path.write_text(broken)
+    return broken
+
+
 def test_every_site_appears_exactly_once_in_the_real_repo():
-    assert set_location.verify(REPO, _load('auckland')) == []
+    assert set_location.verify(REPO, _load(RECORDED)) == []
 
 
 def test_verify_reports_a_site_it_cannot_find(tmp_path):
     repo = _fixture_repo(tmp_path)
-    path = repo / 'src' / set_location.SRC_FILES['02']
-    path.write_text(
-        path.read_text().replace('POLYGON((174.76536299052356', 'POLYGON((0')
-    )
-    errors = set_location.verify(repo, _load('auckland'))
+    _break_the_wkt(repo)
+    errors = set_location.verify(repo, _load(RECORDED))
     assert any('wkt' in e for e in errors)
 
 
@@ -51,41 +98,40 @@ def test_retarget_then_back_is_byte_identical(tmp_path):
         name: (repo / 'src' / name).read_text()
         for name in set_location.SRC_FILES.values()
     }
-    set_location.retarget(repo, _load('auckland'), _load('hiroshima'))
+    set_location.retarget(repo, _load(RECORDED), _load(OTHER))
     assert any(
         (repo / 'src' / name).read_text() != before[name]
         for name in set_location.SRC_FILES.values()
     ), 'retarget changed nothing'
-    set_location.retarget(repo, _load('hiroshima'), _load('auckland'))
+    set_location.retarget(repo, _load(OTHER), _load(RECORDED))
     for name in set_location.SRC_FILES.values():
         assert (repo / 'src' / name).read_text() == before[name]
 
 
 def test_retarget_copies_the_screenshot(tmp_path):
     repo = _fixture_repo(tmp_path)
-    set_location.retarget(repo, _load('auckland'), _load('hiroshima'))
-    active = repo / 'notebooks' / 'assets' / 'geojson_io.png'
-    assert active.read_bytes() == (REPO / 'locations' / 'hiroshima.png').read_bytes()
+    set_location.retarget(repo, _load(RECORDED), _load(OTHER))
+    active = repo / set_location.ACTIVE_SCREENSHOT
+    assert active.read_bytes() == _load(OTHER).screenshot.read_bytes()
 
 
 def test_retarget_updates_the_recorded_slug(tmp_path):
     repo = _fixture_repo(tmp_path)
-    set_location.retarget(repo, _load('auckland'), _load('hiroshima'))
-    assert 'location = "hiroshima"' in (repo / 'pyproject.toml').read_text()
+    set_location.retarget(repo, _load(RECORDED), _load(OTHER))
+    assert f'location = "{OTHER}"' in (repo / 'pyproject.toml').read_text()
 
 
 def test_retarget_writes_nothing_when_verification_fails(tmp_path):
     repo = _fixture_repo(tmp_path)
     path = repo / 'src' / set_location.SRC_FILES['02']
-    broken = path.read_text().replace('POLYGON((174.76536299052356', 'POLYGON((0')
-    path.write_text(broken)
+    broken = _break_the_wkt(repo)
     others = {
         name: (repo / 'src' / name).read_text()
         for name in set_location.SRC_FILES.values()
         if name != set_location.SRC_FILES['02']
     }
     try:
-        set_location.retarget(repo, _load('auckland'), _load('hiroshima'))
+        set_location.retarget(repo, _load(RECORDED), _load(OTHER))
     except SystemExit:
         pass
     else:
@@ -108,8 +154,8 @@ def test_every_ordered_pair_round_trips(tmp_path, start, other):
     until that location is the target.
     """
     repo = _fixture_repo(tmp_path)
-    if start != 'auckland':
-        set_location.retarget(repo, _load('auckland'), _load(start))
+    if start != RECORDED:
+        set_location.retarget(repo, _load(RECORDED), _load(start))
     assert set_location.verify(repo, _load(start)) == []
 
     before = {
@@ -133,22 +179,20 @@ def test_every_ordered_pair_round_trips(tmp_path, start, other):
 def test_verify_reports_a_missing_active_screenshot(tmp_path):
     repo = _fixture_repo(tmp_path)
     (repo / set_location.ACTIVE_SCREENSHOT).unlink()
-    errors = set_location.verify(repo, _load('auckland'))
+    errors = set_location.verify(repo, _load(RECORDED))
     assert any('missing' in e for e in errors), errors
 
 
 def test_verify_reports_a_stale_active_screenshot(tmp_path):
     repo = _fixture_repo(tmp_path)
-    shutil.copy(
-        REPO / 'locations' / 'hiroshima.png', repo / set_location.ACTIVE_SCREENSHOT
-    )
-    errors = set_location.verify(repo, _load('auckland'))
+    shutil.copy(_load(OTHER).screenshot, repo / set_location.ACTIVE_SCREENSHOT)
+    errors = set_location.verify(repo, _load(RECORDED))
     assert any('does not match' in e for e in errors), errors
 
 
 def test_retarget_refuses_a_location_whose_screenshot_is_missing(tmp_path):
     repo = _fixture_repo(tmp_path)
-    target = _load('hiroshima')
+    target = _load(OTHER)
     broken = location.Location(
         slug=target.slug,
         building_name=target.building_name,
@@ -163,7 +207,7 @@ def test_retarget_refuses_a_location_whose_screenshot_is_missing(tmp_path):
         for name in set_location.SRC_FILES.values()
     }
     with pytest.raises(SystemExit, match='nope.png'):
-        set_location.retarget(repo, _load('auckland'), broken)
+        set_location.retarget(repo, _load(RECORDED), broken)
     for name, text in before.items():
         assert (repo / 'src' / name).read_text() == text, f'{name} was modified'
 
@@ -173,14 +217,16 @@ def test_retarget_refuses_when_the_recorded_slug_line_is_unmatchable(tmp_path):
     repo = _fixture_repo(tmp_path)
     pyproject = repo / 'pyproject.toml'
     pyproject.write_text(
-        pyproject.read_text().replace('location = "auckland"', "location = 'auckland'")
+        pyproject.read_text().replace(
+            f'location = "{RECORDED}"', f"location = '{RECORDED}'"
+        )
     )
     before = {
         name: (repo / 'src' / name).read_text()
         for name in set_location.SRC_FILES.values()
     }
     with pytest.raises(SystemExit, match='matched 0'):
-        set_location.retarget(repo, _load('auckland'), _load('hiroshima'))
+        set_location.retarget(repo, _load(RECORDED), _load(OTHER))
     for name, text in before.items():
         assert (repo / 'src' / name).read_text() == text, f'{name} was modified'
 
@@ -192,7 +238,7 @@ def test_load_rejects_an_unknown_slug():
 
 def test_recorded_slug_reads_the_table(tmp_path):
     repo = _fixture_repo(tmp_path)
-    assert set_location.recorded_slug(repo) == 'auckland'
+    assert set_location.recorded_slug(repo) == RECORDED
 
 
 def test_recorded_slug_rejects_a_missing_table(tmp_path):
@@ -205,27 +251,50 @@ def test_recorded_slug_rejects_a_missing_table(tmp_path):
         set_location.recorded_slug(repo)
 
 
-def test_main_same_slug_replaces_the_screenshot(monkeypatch, capsys):
+def test_main_same_slug_replaces_the_screenshot(tmp_path, monkeypatch, capsys):
     """The recorded location's own screenshot is only restorable here."""
-    calls = []
-    monkeypatch.setattr(
-        set_location,
-        'place_screenshot',
-        lambda repo, loc: calls.append(loc.slug),
-    )
-    monkeypatch.setattr('sys.argv', ['set_location.py', 'auckland'])
+    repo = _isolate(monkeypatch, _fixture_repo(tmp_path))
+    active = repo / set_location.ACTIVE_SCREENSHOT
+    active.unlink()
+
+    monkeypatch.setattr('sys.argv', ['set_location.py', RECORDED])
     assert set_location.main() == 0
-    assert calls == ['auckland']
+
+    assert active.read_bytes() == _load(RECORDED).screenshot.read_bytes()
     assert 'already set to' in capsys.readouterr().err
 
 
-def test_main_unknown_slug_exits(monkeypatch):
+def test_main_retargets_an_isolated_repo(tmp_path, monkeypatch):
+    repo = _isolate(monkeypatch, _fixture_repo(tmp_path))
+    monkeypatch.setattr('sys.argv', ['set_location.py', OTHER])
+    assert set_location.main() == 0
+    assert set_location.recorded_slug(repo) == OTHER
+    assert set_location.verify(repo, _load(OTHER)) == []
+
+
+def test_main_check_reports_the_recorded_location(tmp_path, monkeypatch, capsys):
+    repo = _isolate(monkeypatch, _fixture_repo(tmp_path))
+    monkeypatch.setattr('sys.argv', ['set_location.py', '--check'])
+    assert set_location.main() == 0
+    assert f'src/ matches {RECORDED!r}' in capsys.readouterr().err
+    assert set_location.verify(repo, _load(RECORDED)) == []
+
+
+def test_main_check_fails_on_a_drifted_repo(tmp_path, monkeypatch, capsys):
+    repo = _isolate(monkeypatch, _fixture_repo(tmp_path))
+    _break_the_wkt(repo)
+    monkeypatch.setattr('sys.argv', ['set_location.py', '--check'])
+    assert set_location.main() == 1
+    assert 'wkt' in capsys.readouterr().err
+
+
+def test_main_unknown_slug_exits(tmp_path, monkeypatch):
+    _isolate(monkeypatch, _fixture_repo(tmp_path))
     monkeypatch.setattr('sys.argv', ['set_location.py', 'nowhere'])
     with pytest.raises(SystemExit, match='no location'):
         set_location.main()
 
 
-def test_main_check_passes_against_the_real_repo(monkeypatch, capsys):
-    monkeypatch.setattr('sys.argv', ['set_location.py', '--check'])
-    assert set_location.main() == 0
-    assert "src/ matches 'auckland'" in capsys.readouterr().err
+def test_check_passes_against_the_real_repo():
+    """The read-only half of `main --check`, against the actual checkout."""
+    assert set_location.verify(REPO, _load(RECORDED)) == []
