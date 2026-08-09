@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 import location
+import pytest
 import set_location
 
 REPO = Path(__file__).resolve().parent.parent
@@ -108,7 +109,101 @@ def test_every_location_parses():
         loc = location.Location.load(path)
         assert loc.screenshot.is_file()
         assert json.loads(loc.feature_collection)['type'] == 'FeatureCollection'
-        assert loc.ring[0] == loc.ring[-1], 'ring must be closed'
+
+        # Not `ring[0] == ring[-1]`: for a MultiPolygon `ring` is a list of
+        # rings, and that comparison passes trivially by comparing a ring with
+        # itself. Assert the shape as well as the closure.
+        ring = loc.ring
+        assert len(ring) >= 4, f'{path}: a closed ring needs at least 4 points'
+        assert all(len(point) == 2 for point in ring), (
+            f'{path}: every ring entry must be an [x, y] pair'
+        )
+        assert ring[0] == ring[-1], f'{path}: ring must be closed'
+        assert ring[0] is not ring[-1], f'{path}: ring must be closed by value'
+
+
+def _location_with(tmp_path: Path, feature_collection: str) -> Path:
+    """An otherwise-valid location file carrying the given collection."""
+    src = (LOCATIONS / 'auckland.toml').read_text()
+    head = src[: src.index('feature_collection')]
+    target = tmp_path / 'broken.toml'
+    target.write_text(f"{head}feature_collection = '''\n{feature_collection}\n'''\n")
+    return target
+
+
+_POLYGON = """
+{"type": "Feature", "properties": {},
+ "geometry": {"type": "Polygon",
+              "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 0]]]}}
+"""
+
+
+def test_load_rejects_two_features(tmp_path):
+    """Two features load fine and then disagree with themselves."""
+    path = _location_with(
+        tmp_path,
+        f'{{"type": "FeatureCollection", "features": [{_POLYGON}, {_POLYGON}]}}',
+    )
+    with pytest.raises(SystemExit, match='exactly 1 feature, found 2'):
+        location.Location.load(path)
+
+
+def test_load_rejects_zero_features(tmp_path):
+    path = _location_with(tmp_path, '{"type": "FeatureCollection", "features": []}')
+    with pytest.raises(SystemExit, match='exactly 1 feature, found 0'):
+        location.Location.load(path)
+
+
+def test_load_rejects_a_multipolygon(tmp_path):
+    """Otherwise this reaches format_wkt as `too many values to unpack`."""
+    path = _location_with(
+        tmp_path,
+        '{"type": "FeatureCollection", "features": [{"type": "Feature",'
+        ' "properties": {}, "geometry": {"type": "MultiPolygon",'
+        ' "coordinates": [[[[0, 0], [1, 0], [1, 1], [0, 0]]]]}}]}',
+    )
+    with pytest.raises(SystemExit, match="must be a Polygon, found 'MultiPolygon'"):
+        location.Location.load(path)
+
+
+def test_load_rejects_a_polygon_with_a_hole(tmp_path):
+    path = _location_with(
+        tmp_path,
+        '{"type": "FeatureCollection", "features": [{"type": "Feature",'
+        ' "properties": {}, "geometry": {"type": "Polygon",'
+        ' "coordinates": [[[0, 0], [9, 0], [9, 9], [0, 0]],'
+        ' [[1, 1], [2, 1], [2, 2], [1, 1]]]}}]}',
+    )
+    with pytest.raises(SystemExit, match='exactly 1 ring, found 2'):
+        location.Location.load(path)
+
+
+def test_load_rejects_a_feature_with_no_geometry(tmp_path):
+    path = _location_with(
+        tmp_path,
+        '{"type": "FeatureCollection", "features": [{"type": "Feature",'
+        ' "properties": {}}]}',
+    )
+    with pytest.raises(SystemExit, match='no geometry'):
+        location.Location.load(path)
+
+
+def test_load_rejects_something_that_is_not_a_feature_collection(tmp_path):
+    path = _location_with(tmp_path, '{"type": "Polygon", "coordinates": [[[0, 0]]]}')
+    with pytest.raises(SystemExit, match='no "features" list'):
+        location.Location.load(path)
+
+
+def test_load_rejects_invalid_json(tmp_path):
+    path = _location_with(tmp_path, '{"type": "FeatureCollection",')
+    with pytest.raises(SystemExit, match='not valid JSON'):
+        location.Location.load(path)
+
+
+def test_the_error_names_the_file(tmp_path):
+    path = _location_with(tmp_path, '{"type": "FeatureCollection", "features": []}')
+    with pytest.raises(SystemExit, match='broken.toml'):
+        location.Location.load(path)
 
 
 def test_derived_values_for_auckland():
@@ -130,6 +225,26 @@ def test_derived_values_for_hiroshima():
     assert d['sample_pair_bytes'] == '24'
     assert d['sample_x'] == '132.4693292'
     assert d['wkt_wkb_ratio'] == '1.4'
+
+
+def test_geojson_bytes_counts_bytes_not_characters(tmp_path):
+    """`len()` on a str counts characters; exercise 1 claims bytes."""
+    path = _location_with(
+        tmp_path,
+        '{"type": "FeatureCollection", "features": [{"type": "Feature",'
+        ' "properties": {"buildingName": "文化"}, "geometry":'
+        ' {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1],'
+        ' [0, 0]]]}}]}',
+    )
+    loc = location.Location.load(path)
+    assert '文化' in loc.feature_collection
+    characters = len(loc.feature_collection)
+    assert location.derived(loc)['geojson_bytes'] == str(characters + 4)
+
+
+def test_utf8_len_is_the_encoded_length():
+    assert location.utf8_len('abc') == 3
+    assert location.utf8_len('文化') == 6
 
 
 def test_derived_values_appear_verbatim_in_the_sources():
