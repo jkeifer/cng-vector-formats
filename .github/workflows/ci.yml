@@ -13,8 +13,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v8
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
       - name: Install dependencies
@@ -33,12 +33,12 @@ jobs:
       # restore-keys picks up the most recent prior run's cache.
       HCTEF_CACHE_DIR: ${{ github.workspace }}/.hctef-cache
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v8
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
       - name: Restore hctef byte cache
-        uses: actions/cache@v4
+        uses: actions/cache@v55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .hctef-cache
           key: hctef-cache-${{ github.run_id }}
