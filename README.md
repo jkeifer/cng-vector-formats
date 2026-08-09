@@ -1,10 +1,11 @@
 # cng-vector-formats — Contributor Guide
 
-This is the **source/development branch** for *Exploring Cloud-Native
-Geospatial Formats: A Hands-on Workshop for Vector Data*. If you are here to
-**take the workshop**, you want the
-[`workshop` branch](https://github.com/jkeifer/cng-vector-formats/tree/workshop)
-instead — it contains the ready-to-run notebooks and setup instructions.
+> [!IMPORTANT]
+> This is the **source/development branch** for *Exploring Cloud-Native
+> Geospatial Formats: A Hands-on Workshop for Vector Data*. If you are here to
+> **take the workshop**, you want the
+> [`workshop` branch](https://github.com/jkeifer/cng-vector-formats/tree/workshop)
+> instead: it contains the ready-to-run notebooks and setup instructions.
 
 This document is for people editing the workshop content.
 
