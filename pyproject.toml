@@ -41,9 +41,18 @@ quote-style = "single"
 
 [tool.ruff.lint.per-file-ignores]
 # The notebook sources deliberately import modules mid-file, where the
-# narrative introduces them (E402), and use top-level await, which is valid
-# in the IPython kernel's event loop (F704).
-"src/*.py" = ["E402", "F704"]
+# narrative introduces them (E402), and use top-level await, which is valid in
+# the IPython kernel's event loop (F704/PLE1142 -- both rules flag it). They
+# also end cells with a bare expression or a bare comparison, which is how a
+# notebook displays a value or a check's result, not a mistake (B018, B015).
+"src/*.py" = ["E402", "F704", "PLE1142", "B018", "B015"]
+
+[tool.ruff.lint.isort]
+lines-between-types = 1
+# The notebooks alias imports for narrative clarity (`from_wkb as
+# shapely_from_wkb`). Without this, isort explodes each alias into its own
+# `from shapely import (...)` statement.
+combine-as-imports = true
 
 [tool.jupytext]
 # The py:percent files in src/ are the source of truth, named for their
