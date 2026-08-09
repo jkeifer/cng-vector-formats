@@ -65,9 +65,9 @@ From each `src/` file we generate:
   designated cells and omits answer cells.
 * `notes/NN_<name>.md` — notes extracted from cells tagged for note-taking.
 
-Both generation steps are configured by `[tool.ipynb-scrubber]` in
-`pyproject.toml` (input/output paths, tags) and `jupytext.toml` (the `src/` ↔
-`notebooks/completed/` pairing). Static assets referenced by the notebooks
+Both generation steps are configured in `pyproject.toml`, by
+`[tool.ipynb-scrubber]` (input/output paths, tags) and `[tool.jupytext]` (the
+`src/` ↔ `notebooks/completed/` pairing). Static assets referenced by the notebooks
 live in `notebooks/assets/` (tracked on `main`; the generator copies them
 along with the notebooks).
 
