@@ -79,7 +79,7 @@
 # 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  # Point 4: (0.0, 0.0)
 # ```
 #
-# Now in this trivial example, the representation is not actually more compact than the WKT representation. With real-world coordinate values like `174.76536299052356`, the WKB representation ends up 2-3× smaller than the WKT string representation before compression (of course, if you are asking "why 64-bit double floats instead of fixed precision values": don't get me started, I don't understand it either--I can only think early GIS software used floats and the inertia continues to this day).
+# Now in this trivial example, the representation is not actually more compact than the WKT representation. With real-world coordinate values like `174.76536299052356`, the WKB representation ends up about 2.2x smaller than the WKT string representation before compression. Note that ratio depends on how much precision the coordinates carry: WKB always spends 16 bytes per point no matter what, while WKT spends roughly one byte per digit, so coordinates rounded to fewer decimal places narrow the gap considerably (of course, if you are asking "why 64-bit double floats instead of fixed precision values": don't get me started, I don't understand it either--I can only think early GIS software used floats and the inertia continues to this day).
 #
 # But the data size is not the real benefit of WKB: it's actually the parsing speed that really matters. It is much more efficient to take these binary values and unpack them directly into numeric types without string-to-float conversion, handling delimiters, etc. At scale with millions of geometries this makes a massive difference.
 #

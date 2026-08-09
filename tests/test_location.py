@@ -93,3 +93,37 @@ def test_every_location_parses():
         assert loc.screenshot.is_file()
         assert json.loads(loc.feature_collection)['type'] == 'FeatureCollection'
         assert loc.ring[0] == loc.ring[-1], 'ring must be closed'
+
+
+def test_derived_values_for_auckland():
+    d = location.derived(auckland())
+    assert d['geojson_bytes'] == '910'
+    assert d['ring_count'] == '6'
+    assert d['sample_pair'] == '[174.76510987799577,-36.853728372411425],'
+    assert d['sample_pair_bytes'] == '41'
+    assert d['sample_x'] == '174.76536299052356'
+    assert d['wkt_wkb_ratio'] == '2.2'
+
+
+def test_derived_values_for_hiroshima():
+    loc = location.Location.load(LOCATIONS / 'hiroshima.toml')
+    d = location.derived(loc)
+    assert d['geojson_bytes'] == '707'
+    assert d['ring_count'] == '5'
+    assert d['sample_pair'] == '[132.469393,34.3947249],'
+    assert d['sample_pair_bytes'] == '24'
+    assert d['sample_x'] == '132.4693292'
+    assert d['wkt_wkb_ratio'] == '1.4'
+
+
+def test_derived_values_appear_verbatim_in_the_sources():
+    d = location.derived(auckland())
+    one = (REPO / 'src' / '01_is-geojson-cloud-native.py').read_text()
+    two = (REPO / 'src' / '02_the-well-knowns.py').read_text()
+    assert one.count(f'{d["geojson_bytes"]} bytes') == 1
+    assert one.count(d['sample_pair']) == 1
+    assert one.count(f'{d["sample_pair_bytes"]} bytes') == 1
+    assert two.count(f'{d["wkt_wkb_ratio"]}x smaller') == 1
+    # Backticked, so it does not collide with the six bare occurrences inside
+    # the geom_str/wkt/ring_points renderings.
+    assert two.count(f'`{d["sample_x"]}`') == 1
