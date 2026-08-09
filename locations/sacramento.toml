@@ -1,0 +1,52 @@
+# FOSS4G NA, Sacramento. The venue is the Sheraton Grand Sacramento Hotel.
+building_name = "Sheraton Grand Sacramento Hotel"
+city          = "Sacramento"
+region        = "California's Central Valley"
+macro         = "North America"
+screenshot    = "sacramento.png"
+
+feature_collection = '''
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "buildingName": "Sheraton Grand Sacramento Hotel",
+        "floorCount": 28
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -121.4902746,
+              38.5793368
+            ],
+            [
+              -121.4904459,
+              38.5789284
+            ],
+            [
+              -121.4895781,
+              38.5787015
+            ],
+            [
+              -121.4894185,
+              38.5790713
+            ],
+            [
+              -121.4894417,
+              38.579119
+            ],
+            [
+              -121.4902746,
+              38.5793368
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}
+'''

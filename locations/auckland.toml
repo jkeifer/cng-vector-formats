@@ -1,0 +1,54 @@
+# FOSS4G 2025, Auckland. The venue was the AUT School of Business building.
+building_name = "AUT School of Business building"
+city          = "Auckland"
+region        = "New Zealand's North Island"
+macro         = "Oceania"
+screenshot    = "auckland.png"
+
+feature_collection = '''
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "buildingId": "WF",
+        "school": "Business",
+        "floorCount": 10
+      },
+      "geometry": {
+        "coordinates": [
+          [
+            [
+              174.76536299052356,
+              -36.85325730119731
+            ],
+            [
+              174.76501948066357,
+              -36.85354934760823
+            ],
+            [
+              174.76510987799577,
+              -36.853728372411425
+            ],
+            [
+              174.76557768418712,
+              -36.85354844344181
+            ],
+            [
+              174.76544321815658,
+              -36.85331878474462
+            ],
+            [
+              174.76536299052356,
+              -36.85325730119731
+            ]
+          ]
+        ],
+        "type": "Polygon"
+      },
+      "id": 0
+    }
+  ]
+}
+'''
