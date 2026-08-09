@@ -14,8 +14,8 @@ Typical use in this repo:
     uv run scripts/generate_notebooks.py --output-dir ./workshop
     # ...review ./workshop, then `git -C ./workshop add/commit/push`.
 
-The same tool works for any other branch that needs content staged into a
-worktree for review.
+The same tool works for the data branch (or anything else) that needs content
+staged into a worktree for review.
 """
 
 from __future__ import annotations
@@ -41,9 +41,30 @@ def _branch_exists(branch: str) -> bool:
     return (
         subprocess.run(
             ['git', 'show-ref', '--verify', '--quiet', f'refs/heads/{branch}'],
+            check=False,
         ).returncode
         == 0
     )
+
+
+def _remotes_with_branch(branch: str) -> list[str]:
+    """Remotes that have a tracking ref for `branch`, e.g. ['origin'].
+
+    A fresh clone has no local `workshop` branch, only `origin/workshop`. Without
+    this the branch looks nonexistent and we would branch off HEAD instead --
+    quietly producing a worktree with the wrong content.
+    """
+    refs = _git(
+        'for-each-ref',
+        '--format=%(refname)',
+        f'refs/remotes/*/{branch}',
+        capture=True,
+    )
+    return [
+        ref[len('refs/remotes/') :].removesuffix(f'/{branch}')
+        for ref in refs.splitlines()
+        if ref
+    ]
 
 
 def _worktrees() -> dict[Path, str]:
@@ -91,11 +112,35 @@ def prepare_worktree(branch: str, path: Path, orphan: bool) -> Path:
 
     if _branch_exists(branch):
         _git('worktree', 'add', str(path), branch)
+        return path
+
+    # No local branch. Before inventing one, check whether it already exists on
+    # a remote -- on a fresh clone that is the normal case for `workshop`.
+    remotes = _remotes_with_branch(branch)
+    if len(remotes) > 1:
+        raise SystemExit(
+            f'error: branch {branch!r} exists on multiple remotes '
+            f'({", ".join(sorted(remotes))}) and no local branch resolves the '
+            f'ambiguity. Create it locally first, e.g. `git branch {branch} '
+            f'{min(remotes)}/{branch}`.',
+        )
+    if remotes:
+        remote = remotes[0]
+        print(f'creating {branch!r} tracking {remote}/{branch}', file=sys.stderr)
+        _git(
+            'worktree', 'add', '--track', '-b', branch, str(path), f'{remote}/{branch}'
+        )
     elif orphan:
         # New orphan branch (no shared history) materialized in the worktree.
         _git('worktree', 'add', '--orphan', '-b', branch, str(path))
     else:
-        # New branch off the current HEAD.
+        # Genuinely new branch off the current HEAD. Say so -- if the user meant
+        # to check out an existing remote branch, this is where it goes wrong.
+        head = _git('rev-parse', '--abbrev-ref', 'HEAD', capture=True)
+        print(
+            f'note: no local or remote branch {branch!r}; creating it from {head}',
+            file=sys.stderr,
+        )
         _git('worktree', 'add', '-b', branch, str(path))
 
     return path
