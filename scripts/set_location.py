@@ -84,6 +84,12 @@ def sites(loc: Location) -> list[Site]:
         Site('sample_x', two, f'`{d["sample_x"]}`'),
         Site('wkt_wkb_ratio', two, f'{d["wkt_wkb_ratio"]}x smaller'),
         Site('geom', three, format_geom_pretty(loc)),
+        # Bare, unlike city/region/macro above, and only safe because of what
+        # exercise 3 embeds: `format_geom_pretty` renders the geometry alone,
+        # with no `properties`, so the collection's own buildingName is not in
+        # this file to collide with. Anything that put the properties back --
+        # or a second prose mention of the building -- breaks that, and
+        # `verify()` will say so rather than silently mis-substituting.
         Site('building_name', three, loc.building_name),
     ]
 
@@ -145,13 +151,14 @@ def rewrite_recorded_slug(text: str, slug: str) -> str:
     Raises if the line is not found exactly once. The pattern is narrower than
     TOML allows (single quotes and extra spacing are all valid and would not
     match), so a silent no-op here would report success while leaving the
-    recorded location stale.
+    recorded location stale. No `count=1`: capping the substitution would make
+    `subn` report 1 for any number of matches, leaving only the zero case
+    detectable and the "exactly once" claim above untrue.
     """
     new, count = re.subn(
         r'^location = ".*"$',
         f'location = "{slug}"',
         text,
-        count=1,
         flags=re.MULTILINE,
     )
     if count != 1:
