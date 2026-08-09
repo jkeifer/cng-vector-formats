@@ -39,7 +39,7 @@
 #
 # ## The exercise
 #
-# To get a deeper understanding of parquet and how it works, we're going to examine the [Overture Maps Buildings dataset](https://docs.overturemaps.org/guides/buildings). We will find the geometry for the building we're in for this workshop, the AUT School of Business building.
+# To get a deeper understanding of parquet and how it works, we're going to examine the [Overture Maps Buildings dataset](https://docs.overturemaps.org/guides/buildings). We will find the geometry for the building we're in for this workshop, the RCC Bunka Center.
 #
 # This exercise is perhaps a bit contrived, because we'll start with a rough geometry for the building that we traced from aerial imagery in exercise 1, but the principles we'll be demonstrating are applicable generally for clients wanting to read from parquet, and will show how that process works in some detail. Key to the process will be a focus on using predicate pushdown with geometries, and how we can use less expensive bounding box operations to more efficiently eliminate chunks and records before turning to more expensive real-geometry comparisons.
 #
@@ -149,35 +149,31 @@ class BBox:
 
 # %%
 geom = json.loads("""{
+  "type": "Polygon",
   "coordinates": [
     [
       [
-        174.76536299052356,
-        -36.85325730119731
+        132.4693292,
+        34.3952499
       ],
       [
-        174.76501948066357,
-        -36.85354934760823
+        132.4695581,
+        34.3951943
       ],
       [
-        174.76510987799577,
-        -36.853728372411425
+        132.469393,
+        34.3947249
       ],
       [
-        174.76557768418712,
-        -36.85354844344181
+        132.4691665,
+        34.3947776
       ],
       [
-        174.76544321815658,
-        -36.85331878474462
-      ],
-      [
-        174.76536299052356,
-        -36.85325730119731
+        132.4693292,
+        34.3952499
       ]
     ]
-  ],
-  "type": "Polygon"
+  ]
 }""")
 geom
 
