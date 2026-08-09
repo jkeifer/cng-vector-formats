@@ -100,3 +100,25 @@ def format_ring_points(loc: Location) -> str:
 def format_geom_pretty(loc: Location) -> str:
     """Exercise 3: the geometry alone, pretty-printed."""
     return json.dumps(loc.geometry, indent=2)
+
+
+def derived(loc: Location) -> dict[str, str]:
+    """The facts the prose asserts, computed rather than written down.
+
+    All returned as strings: these are substituted into source text, and
+    formatting them here keeps rounding in one place.
+    """
+    ring = loc.ring
+    pair = json.dumps(ring[SAMPLE_POINT_INDEX], separators=(',', ':')) + ','
+    wkt = format_wkt(loc)
+    # 1 byte endianness + 4 type + 4 ring count + 4 point count + 16 per point.
+    wkb_size = 13 + 16 * len(ring)
+
+    return {
+        'geojson_bytes': str(len(loc.feature_collection)),
+        'sample_pair': pair,
+        'sample_pair_bytes': str(len(pair)),
+        'ring_count': str(len(ring)),
+        'sample_x': repr(ring[0][0]),
+        'wkt_wkb_ratio': f'{len(wkt) / wkb_size:.1f}',
+    }

@@ -759,12 +759,12 @@ matched_rows: dict[str, dict[int, list[int]]] = dict(
 matched_rows
 
 # %% [markdown]
-# As only one row group in one file had intersections, let's extract the key bits of information here out into discrete variables, to keep the following code simpler. Specifically, we'll define vars for the file URL, the row group index, and the intersected row indices.
+# Let's extract the key bits of information from the first match into discrete variables, to keep the following code simpler. Specifically, we'll define vars for the file URL, the row group index, and the intersected row indices. (How many row groups matched depends on the building and the release; we print the count so it's visible.)
 
 # %%
-file_url, row_group_index, row_indices = next(
-    (url, k, v) for url, d in matched_rows.items() if d for k, v in d.items()
-)
+matches = [(url, k, v) for url, d in matched_rows.items() if d for k, v in d.items()]
+print(f'{len(matches)} row group(s) contain intersecting rows')
+file_url, row_group_index, row_indices = matches[0]
 file_url, row_group_index, row_indices
 
 # %% [markdown]
