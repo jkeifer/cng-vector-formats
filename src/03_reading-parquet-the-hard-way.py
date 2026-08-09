@@ -85,11 +85,10 @@ from devtools import pprint
 from IPython.display import Pretty
 from por_que import AsyncHttpFile, FileMetadata, ParquetFile
 from shapely import (
-    intersection,
     from_geojson as shapely_from_geojson,
     from_wkb as shapely_from_wkb,
+    intersection,
 )
-
 
 # %% [markdown]
 # We'll also define a helper function for zipping async iterators together, which we'll use later.
@@ -138,8 +137,9 @@ class BBox:
                 ymin = min(ymin, y)
                 xmax = max(xmax, x)
                 ymax = max(ymax, y)
-        except Exception:
-            raise ValueError('Failed to extract bbox')
+        except (TypeError, ValueError) as e:
+            # what a non-coordinate-pair element raises when it fails to unpack
+            raise ValueError('Failed to extract bbox') from e
 
         return cls(xmin, ymin, xmax, ymax)
 
@@ -357,7 +357,9 @@ Path('./buildings.parquet.json').write_text(pf.to_json())
 # We can view that metadata like so:
 
 # %%
-json.loads([kv for kv in pf.metadata.key_value_metadata if kv.key == 'geo'][0].value)
+json.loads(
+    next(kv for kv in pf.metadata.key_value_metadata if kv.key == 'geo').value,
+)
 
 # %% [markdown]
 # ## Filtering files
@@ -465,7 +467,7 @@ total_rows == sum(item['properties']['num_rows'] for item in items)
 urls_that_intersect = []
 for fm_url, fm in fms.items():
     kv_metadata = json.loads(
-        [kv for kv in fm.key_value_metadata if kv.key == 'geo'][0].value,
+        next(kv for kv in fm.key_value_metadata if kv.key == 'geo').value,
     )
     bbox = BBox(*kv_metadata['columns']['geometry']['bbox'])
     if bbox.intersects(geom_bbox):
@@ -760,9 +762,9 @@ matched_rows
 # As only one row group in one file had intersections, let's extract the key bits of information here out into discrete variables, to keep the following code simpler. Specifically, we'll define vars for the file URL, the row group index, and the intersected row indices.
 
 # %%
-file_url, row_group_index, row_indices = [
+file_url, row_group_index, row_indices = next(
     (url, k, v) for url, d in matched_rows.items() if d for k, v in d.items()
-][0]
+)
 file_url, row_group_index, row_indices
 
 # %% [markdown]
@@ -834,7 +836,9 @@ geom_rows
 
 # %%
 json.loads(
-    [kv for kv in pfs[file_url].metadata.key_value_metadata if kv.key == 'geo'][0].value
+    next(
+        kv for kv in pfs[file_url].metadata.key_value_metadata if kv.key == 'geo'
+    ).value,
 )
 
 # %% [markdown]
