@@ -21,6 +21,10 @@ jobs:
         run: uv sync
       - name: Run prek hooks
         run: uv run prek run --all-files
+      - name: Run tests
+        run: uv run pytest
+      - name: Check src/ matches the recorded location
+        run: uv run scripts/set_location.py --check
 
   notebooks:
     runs-on: ubuntu-latest
