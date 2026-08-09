@@ -66,7 +66,7 @@ geojson_str = """{
     {
       "type": "Feature",
       "properties": {
-        "buildingName": "RCC Bunka Center",
+        "buildingName": "RCC文化センター",
         "floorCount": 7
       },
       "geometry": {
@@ -109,9 +109,9 @@ geojson
 # <!-- scrub-omit -->
 # ### A few things to notice
 #
-# This GeoJSON is not large. As a string it is only 707 bytes long. Cloud-native concerns don't even begin to come into play with this example, it's just not big enough for us to have to worry about read inefficiencies.
+# This GeoJSON is not large. As a string it is only 712 bytes long. Cloud-native concerns don't even begin to come into play with this example, it's just not big enough for us to have to worry about read inefficiencies.
 #
-# But notice the length of each point: a point coordinate pair like `[132.469393,34.3947249],` is 24 bytes, and that's removing all whitespace from consideration. Imagine I did a better job tracing the building, we could have 16 points instead of just 5. Or 49 if I had followed the zigzags. Or even more if I tried to follow the apparent radius of the building corner...
+# But notice the length of each point: a point coordinate pair like `[132.469393,34.3947249],` is 24 bytes, and that's removing all whitespace from consideration. We traced this building with just 5 points. Imagine we placed a point every 5 meters along the facade — how many more points would we have had here? A point every 1 meter? Depending on our building's shape and how we trace it, we could end up with many more points…
 #
 # Imagine then we extend this feature collection so it contains similar geometries for all buildings in Hiroshima. Or Honshu. Or all of Japan.
 #
