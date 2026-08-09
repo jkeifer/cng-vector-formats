@@ -23,6 +23,11 @@ Repository = 'https://github.com/jkeifer/cng-vector-formats'
 [tool.uv]
 package = false
 
+[tool.workshop]
+# The location the src/ files currently contain. Change it with
+# `uv run scripts/set_location.py <slug>`, never by hand.
+location = "auckland"
+
 [dependency-groups]
 dev = [
     "ipynb-scrubber>=0.4.1",
