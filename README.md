@@ -67,9 +67,11 @@ From each `src/` file we generate:
 
 Both generation steps are configured in `pyproject.toml`, by
 `[tool.ipynb-scrubber]` (input/output paths, tags) and `[tool.jupytext]` (the
-`src/` ↔ `notebooks/completed/` pairing). Static assets referenced by the notebooks
-live in `notebooks/assets/` (tracked on `main`; the generator copies them
-along with the notebooks).
+`src/` ↔ `notebooks/completed/` pairing). Static assets referenced by the
+notebooks live in `notebooks/assets/` (tracked on `main`). They are inputs, not
+generated output, so `[tool.generate-notebooks]` lists them twice: under `keep`
+so `--prune` leaves them alone, and under `copy` so they are copied into a
+`--output-dir` that is not this repo.
 
 ### Changing the workshop location
 
@@ -121,16 +123,23 @@ cd workshop
 git add -A && git commit -m "Update notebooks" && git push
 ```
 
+Step 2 writes the exercise notebooks, the completed notebooks, and the notes
+into the worktree, and copies every `[tool.generate-notebooks]` `copy` path
+(currently `notebooks/assets/`) over the worktree's own. That copy is what
+carries a location change through to the published branch: without it the
+worktree keeps the previous building's screenshot, and because nothing in the
+worktree changed, `git status` there reports nothing amiss.
+
 `generate_notebooks.py` defaults `--output-dir` to the repo root, so a bare
 `uv run scripts/generate_notebooks.py` regenerates the notebooks in place
-(handy for a quick local check). The generated notebooks are gitignored on
-`main`.
+(handy for a quick local check); the copy step is a no-op in that case. The
+generated notebooks are gitignored on `main`.
 
 The `workshop` branch maintains its **own** participant-facing README, notes,
 and runtime environment (a trimmed `pyproject.toml` with runtime deps only,
 plus its `uv.lock`, Dockerfile, `compose.yml`, and `.devcontainer`). Those are
-edited on the `workshop` branch, not copied from `main`; the stage script only
-writes the notebooks and notes.
+edited on the `workshop` branch, not copied from `main`; the generator only
+writes the notebooks, the notes, and the configured `copy` paths.
 
 ## Development environment
 

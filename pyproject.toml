@@ -90,9 +90,12 @@ notebook_metadata_filter = "-all"
 cell_metadata_filter = "tags,-all"
 
 [tool.generate-notebooks]
-# Paths under the managed trees that are inputs, not generated output. Without
-# this, --prune deletes them.
+# Paths under the managed trees that are inputs, not generated output.
+# `keep`: --prune must not delete them.
+# `copy`: copy them from here into a non-local --output-dir, so a retarget's
+# new screenshot actually reaches the published workshop worktree.
 keep = ["notebooks/assets"]
+copy = ["notebooks/assets"]
 
 [tool.ipynb-scrubber.options]
 clear-text = ""

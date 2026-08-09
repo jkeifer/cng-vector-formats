@@ -21,12 +21,22 @@ in pyproject.toml, so this stays single-sourced with the local `scrub-project`
 workflow. We drive the scrubber through its Python API with each config entry's
 paths rebased under --output-dir, which is what `scrub-project` itself does
 internally -- so the output is identical, without a rewritten temp config.
+
+Two lists in [tool.generate-notebooks] describe the paths under the managed
+trees that are inputs rather than generated output:
+
+    [tool.generate-notebooks]
+    keep = ["notebooks/assets"]   # --prune must not delete these
+    copy = ["notebooks/assets"]   # copy these into a non-local --output-dir
+
+Both are optional; a project that sets neither behaves as if they were empty.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import tomllib
@@ -66,21 +76,82 @@ def _entry_paths(entry: FileEntry) -> tuple[Path, ...]:
     return tuple(p for p in paths if p is not None)
 
 
-def _load_keep(pyproject: Path) -> tuple[str, ...]:
-    """Paths under the managed trees that are inputs, not generated output.
+def _load_paths(pyproject: Path, key: str) -> tuple[str, ...]:
+    """One [tool.generate-notebooks] list of paths under the managed trees.
 
-    Assets are the motivating case: nothing in the scrubber config claims
-    notebooks/assets/, so without this --prune deletes the screenshots.
+    These name inputs rather than generated output. Assets are the motivating
+    case: nothing in the scrubber config claims notebooks/assets/, so without
+    `keep` --prune deletes the screenshots, and without `copy` a stale copy of
+    them survives forever in a published worktree.
     """
     with pyproject.open('rb') as f:
         data = tomllib.load(f)
 
-    keep = data.get('tool', {}).get('generate-notebooks', {}).get('keep', [])
-    if not isinstance(keep, list) or not all(isinstance(k, str) for k in keep):
+    paths = data.get('tool', {}).get('generate-notebooks', {}).get(key, [])
+    if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
         raise SystemExit(
-            'error: [tool.generate-notebooks] keep must be a list of strings',
+            f'error: [tool.generate-notebooks] {key} must be a list of strings',
         )
-    return tuple(keep)
+    return tuple(paths)
+
+
+def _unmatched(paths: tuple[str, ...], base: Path, roots: set[str]) -> list[str]:
+    """Entries that name nothing under the managed trees.
+
+    A typo is otherwise silent and undoes the point of the setting: `keep =
+    ["notebook/assets"]` puts the assets straight back on the stale list, where
+    --prune deletes them.
+    """
+    return [
+        entry
+        for entry in paths
+        if not Path(entry).parts
+        or Path(entry).parts[0] not in roots
+        or not (base / entry).exists()
+    ]
+
+
+def _warn_unmatched(
+    key: str,
+    paths: tuple[str, ...],
+    base: Path,
+    roots: set[str],
+) -> None:
+    """Report, without failing: an empty managed directory is legitimate."""
+    for entry in _unmatched(paths, base, roots):
+        print(
+            f'warning: [tool.generate-notebooks] {key} entry {entry!r} matches '
+            f'nothing under {", ".join(sorted(roots))} in {base}',
+            file=sys.stderr,
+        )
+
+
+def _copy_inputs(paths: tuple[str, ...], output_dir: Path) -> None:
+    """Copy each `copy` path from the repo into a separate output dir.
+
+    Generation only writes what the scrubber config claims, so an input living
+    under a managed tree (an image the notebooks embed, say) never reaches a
+    published worktree after the first time it is committed there -- and since
+    the worktree keeps its stale copy, `git status` shows nothing to signal it.
+    Copying overwrites, so the worktree tracks whatever the repo now holds.
+
+    A no-op when the output dir is the repo itself: source and destination are
+    the same file.
+    """
+    if output_dir == REPO_ROOT:
+        return
+
+    for entry in paths:
+        source = REPO_ROOT / entry
+        if not source.exists():
+            continue  # already warned about
+        dest = output_dir / entry
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if source.is_dir():
+            shutil.copytree(source, dest, dirs_exist_ok=True)
+        else:
+            shutil.copy2(source, dest)
+        print(f'copied {entry}', file=sys.stderr)
 
 
 def _stale_paths(
@@ -194,7 +265,12 @@ def generate(output_dir: Path, prune: bool = False) -> bool:
     }
     entries = [_rebase(configured, output_dir) for configured in config.files]
 
-    stale = _stale_paths(entries, output_dir, roots, _load_keep(PYPROJECT))
+    keep = _load_paths(PYPROJECT, 'keep')
+    copy = _load_paths(PYPROJECT, 'copy')
+    _warn_unmatched('keep', keep, output_dir, roots)
+    _warn_unmatched('copy', copy, REPO_ROOT, roots)
+
+    stale = _stale_paths(entries, output_dir, roots, keep)
     if stale and prune:
         _prune_stale(stale, output_dir, roots)
         stale = []
@@ -207,6 +283,10 @@ def generate(output_dir: Path, prune: bool = False) -> bool:
             're-run with --prune to delete them',
             file=sys.stderr,
         )
+
+    # After pruning, so a copied input that is not also in `keep` survives the
+    # run rather than being deleted and rewritten in the same breath.
+    _copy_inputs(copy, output_dir)
 
     for entry in entries:
         _render_completed(entry.input)
