@@ -14,34 +14,12 @@ SLUGS = sorted(p.stem for p in (REPO / 'locations').glob('*.toml'))
 # The location the real repo currently records. Every test that starts from a
 # copy of src/ must work from this rather than a hardcoded slug: src/ contains
 # whichever location was last set, and a test that assumes otherwise either
-# fails spuriously or -- far worse -- drives a real retarget. See
-# `_real_repo_is_untouched`.
+# fails spuriously or -- far worse -- drives a real retarget. The guard that
+# catches that lives in conftest.py, session-scoped, so it covers every module.
 RECORDED = set_location.recorded_slug(REPO)
 
 # Any other location, for retargeting away and back.
 OTHER = next(slug for slug in SLUGS if slug != RECORDED)
-
-# The files a retarget writes. Guarded below.
-TRACKED = [
-    Path('pyproject.toml'),
-    *(Path('src') / n for n in set_location.SRC_FILES.values()),
-]
-
-
-@pytest.fixture(autouse=True, scope='module')
-def _real_repo_is_untouched():
-    """Fail if anything in this module writes to the real repository.
-
-    `main()` defaults to `set_location.REPO_ROOT`, so a test that calls it
-    without redirecting that constant retargets the developer's checkout (and
-    CI's) for real. That happened once; this makes it impossible to miss.
-    """
-    before = {path: (REPO / path).read_bytes() for path in TRACKED}
-    yield
-    changed = [
-        str(path) for path, data in before.items() if (REPO / path).read_bytes() != data
-    ]
-    assert not changed, f'the test suite modified the real repository: {changed}'
 
 
 def _fixture_repo(tmp_path: Path) -> Path:

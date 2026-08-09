@@ -8,4 +8,37 @@ import sys
 
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'scripts'))
+REPO = Path(__file__).resolve().parent.parent
+
+sys.path.insert(0, str(REPO / 'scripts'))
+
+# Below the sys.path insert above, which is what makes set_location importable.
+import pytest
+import set_location
+
+# Every file a retarget writes. Guarded below.
+TRACKED = [
+    Path('pyproject.toml'),
+    *(Path('src') / name for name in set_location.SRC_FILES.values()),
+    set_location.ACTIVE_SCREENSHOT,
+]
+
+
+@pytest.fixture(autouse=True, scope='session')
+def _real_repo_is_untouched():
+    """Fail if anything in the suite writes to the real repository.
+
+    `main()` and `retarget()` default to `set_location.REPO_ROOT`, so a test
+    that calls one without redirecting that constant retargets the developer's
+    checkout (and CI's) for real. That happened once on this branch, silently.
+
+    Session-scoped and in conftest deliberately: the guard used to live in
+    test_set_location.py at module scope, which left every other module --
+    including test_location.py, which reads the real src/ -- unwatched.
+    """
+    before = {path: (REPO / path).read_bytes() for path in TRACKED}
+    yield
+    changed = [
+        str(path) for path, data in before.items() if (REPO / path).read_bytes() != data
+    ]
+    assert not changed, f'the test suite modified the real repository: {changed}'
