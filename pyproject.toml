@@ -29,6 +29,7 @@ dev = [
     "jupytext>=1.19.4",
     "nbclient>=0.11.0",
     "prek>=0.4.8",
+    "pytest>=8.4.2",
     "ruff>=0.16.2",
 ]
 
@@ -53,6 +54,9 @@ lines-between-types = 1
 # shapely_from_wkb`). Without this, isort explodes each alias into its own
 # `from shapely import (...)` statement.
 combine-as-imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.jupytext]
 # The py:percent files in src/ are the source of truth, named for their
@@ -79,6 +83,11 @@ formats = "src///py:percent,notebooks/completed///ipynb"
 # nbclient/`jupyter execute` needs to continue past them.
 notebook_metadata_filter = "-all"
 cell_metadata_filter = "tags,-all"
+
+[tool.generate-notebooks]
+# Paths under the managed trees that are inputs, not generated output. Without
+# this, --prune deletes them.
+keep = ["notebooks/assets"]
 
 [tool.ipynb-scrubber.options]
 clear-text = ""
