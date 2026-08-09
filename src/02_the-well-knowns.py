@@ -79,7 +79,7 @@
 # 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  # Point 4: (0.0, 0.0)
 # ```
 #
-# Now in this trivial example, the representation is not actually more compact than the WKT representation. With real-world coordinate values like `174.76536299052356`, the WKB representation ends up about 2.2x smaller than the WKT string representation before compression. Note that ratio depends on how much precision the coordinates carry: WKB always spends 16 bytes per point no matter what, while WKT spends roughly one byte per digit, so coordinates rounded to fewer decimal places narrow the gap considerably (of course, if you are asking "why 64-bit double floats instead of fixed precision values": don't get me started, I don't understand it either--I can only think early GIS software used floats and the inertia continues to this day).
+# Now in this trivial example, the representation is not actually more compact than the WKT representation. With real-world coordinate values like `132.4693292`, the WKB representation ends up about 1.4x smaller than the WKT string representation before compression. Note that ratio depends on how much precision the coordinates carry: WKB always spends 16 bytes per point no matter what, while WKT spends roughly one byte per digit, so coordinates rounded to fewer decimal places narrow the gap considerably (of course, if you are asking "why 64-bit double floats instead of fixed precision values": don't get me started, I don't understand it either--I can only think early GIS software used floats and the inertia continues to this day).
 #
 # But the data size is not the real benefit of WKB: it's actually the parsing speed that really matters. It is much more efficient to take these binary values and unpack them directly into numeric types without string-to-float conversion, handling delimiters, etc. At scale with millions of geometries this makes a massive difference.
 #
@@ -108,12 +108,11 @@ from shapely import from_wkb as shapely_from_wkb, wkt as shapely_wkt
 #| scrub-note: cell0 | geom_str = """PASTE YOUR GEOJSON GEOMETRY HERE"""
 geom_str = """{
     "coordinates": [[
-        [174.76536299052356, -36.85325730119731],
-        [174.76501948066357, -36.85354934760823],
-        [174.76510987799577, -36.853728372411425],
-        [174.76557768418712, -36.85354844344181],
-        [174.76544321815658, -36.85331878474462],
-        [174.76536299052356, -36.85325730119731]
+        [132.4693292, 34.3952499],
+        [132.4695581, 34.3951943],
+        [132.469393, 34.3947249],
+        [132.4691665, 34.3947776],
+        [132.4693292, 34.3952499]
     ]],
     "type": "Polygon"
 }"""
@@ -123,7 +122,7 @@ geom_str = """{
 
 # %%
 #| scrub-note: cell1 | wkt = 'WRITE YOUR WKT POLYGON HERE'
-wkt = 'POLYGON((174.76536299052356 -36.85325730119731, 174.76501948066357 -36.85354934760823, 174.76510987799577 -36.853728372411425, 174.76557768418712 -36.85354844344181, 174.76544321815658 -36.85331878474462, 174.76536299052356 -36.85325730119731))'
+wkt = 'POLYGON((132.4693292 34.3952499, 132.4695581 34.3951943, 132.469393 34.3947249, 132.4691665 34.3947776, 132.4693292 34.3952499))'
 wkt
 
 # %% [markdown]
@@ -153,12 +152,11 @@ endianness = 1
 geom_type = 3
 ring_count = 1
 ring_points = [
-    (174.76536299052356, -36.85325730119731),
-    (174.76501948066357, -36.85354934760823),
-    (174.76510987799577, -36.853728372411425),
-    (174.76557768418712, -36.85354844344181),
-    (174.76544321815658, -36.85331878474462),
-    (174.76536299052356, -36.85325730119731),
+    (132.4693292, 34.3952499),
+    (132.4695581, 34.3951943),
+    (132.469393, 34.3947249),
+    (132.4691665, 34.3947776),
+    (132.4693292, 34.3952499),
 ]
 
 # %% [markdown]

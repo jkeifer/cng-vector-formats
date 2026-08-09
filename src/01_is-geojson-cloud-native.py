@@ -66,42 +66,36 @@ geojson_str = """{
     {
       "type": "Feature",
       "properties": {
-        "buildingId": "WF",
-        "school": "Business",
-        "floorCount": 10
+        "buildingName": "RCC Bunka Center",
+        "floorCount": 7
       },
       "geometry": {
+        "type": "Polygon",
         "coordinates": [
           [
             [
-              174.76536299052356,
-              -36.85325730119731
+              132.4693292,
+              34.3952499
             ],
             [
-              174.76501948066357,
-              -36.85354934760823
+              132.4695581,
+              34.3951943
             ],
             [
-              174.76510987799577,
-              -36.853728372411425
+              132.469393,
+              34.3947249
             ],
             [
-              174.76557768418712,
-              -36.85354844344181
+              132.4691665,
+              34.3947776
             ],
             [
-              174.76544321815658,
-              -36.85331878474462
-            ],
-            [
-              174.76536299052356,
-              -36.85325730119731
+              132.4693292,
+              34.3952499
             ]
           ]
-        ],
-        "type": "Polygon"
-      },
-      "id": 0
+        ]
+      }
     }
   ]
 }"""
@@ -115,11 +109,11 @@ geojson
 # <!-- scrub-omit -->
 # ### A few things to notice
 #
-# This GeoJSON is not large. As a string it is only 910 bytes long. Cloud-native concerns don't even begin to come into play with this example, it's just not big enough for us to have to worry about read inefficiencies.
+# This GeoJSON is not large. As a string it is only 707 bytes long. Cloud-native concerns don't even begin to come into play with this example, it's just not big enough for us to have to worry about read inefficiencies.
 #
-# But notice the length of each point: a point coordinate pair like `[174.76510987799577,-36.853728372411425],` is 41 bytes, and that's removing all whitespace from consideration. Imagine I did a better job tracing the building, we could have 16 points instead of just 6. Or 49 if I had followed the zigzags. Or even more if I tried to follow the apparent radius of the building corner...
+# But notice the length of each point: a point coordinate pair like `[132.469393,34.3947249],` is 24 bytes, and that's removing all whitespace from consideration. Imagine I did a better job tracing the building, we could have 16 points instead of just 5. Or 49 if I had followed the zigzags. Or even more if I tried to follow the apparent radius of the building corner...
 #
-# Imagine then we extend this feature collection so it contains similar geometries for all buildings in Auckland. Or New Zealand's North Island. Or all of Oceania.
+# Imagine then we extend this feature collection so it contains similar geometries for all buildings in Hiroshima. Or Honshu. Or all of Japan.
 #
 # We start to see a potential problem...
 

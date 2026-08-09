@@ -26,7 +26,7 @@ package = false
 [tool.workshop]
 # The location the src/ files currently contain. Change it with
 # `uv run scripts/set_location.py <slug>`, never by hand.
-location = "auckland"
+location = "hiroshima"
 
 [dependency-groups]
 dev = [
