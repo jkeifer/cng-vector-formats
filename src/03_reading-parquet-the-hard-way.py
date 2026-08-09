@@ -689,15 +689,15 @@ async with AsyncHttpFile(urls_that_intersect[0]) as hf:
 bbox_tuples[:4]
 
 # %% [markdown]
-# This result, it might be unexpected. Each data value we see is a three-tuple like `(float, int, int)`. The float values, if not obviously, are our actual data values. The integer values are the definition and repetition levels for each value.
+# This result, it might be unexpected. Each data value we see is not a bare float but a `PageValue`, a named tuple carrying the value alongside its definition and repetition levels.
 #
 # Exactly what the definition and repetition levels are and how they work is outside the scope of this exercise; the short version is they are used in reconstructing nested types like maps, arrays, and structs, by providing the necessary state to determine when and where within a data tree to end/start a data structure or insert nulls. To learn more about how this works, review the three-part blog post series on the Apache Arrow blog ([part 1](https://arrow.apache.org/blog/2022/10/05/arrow-parquet-encoding-part-1/), [part 2](https://arrow.apache.org/blog/2022/10/08/arrow-parquet-encoding-part-2/), and [part 3](https://arrow.apache.org/blog/2022/10/17/arrow-parquet-encoding-part-3/)) or dig into the `por_que.structuring` code.
 #
-# For now, just note that for our purposes we only need the first element of these tuples, which we can get using something like the generator expression `(i[0] for i in bbox_tuple)`. Let's use that when iterating through each of our bbox tuples, constructing a `BBox` instance from each tuple's extracted values and checking the intersection with our geometry's `BBox` instance. We'll print out the index of each row that intersects, if any.
+# For now, just note that for our purposes we only need the value itself, which the named tuple's `.value` property gives us: `(i.value for i in bbox_tuple)`. Let's use that when iterating through each of our bbox tuples, constructing a `BBox` instance from each tuple's extracted values and checking the intersection with our geometry's `BBox` instance. We'll print out the index of each row that intersects, if any.
 
 # %%
 for row_index, bbox_tuple in enumerate(bbox_tuples):
-    if BBox(*(i[0] for i in bbox_tuple)).intersects(geom_bbox):
+    if BBox(*(i.value for i in bbox_tuple)).intersects(geom_bbox):
         print(row_index)
 
 
@@ -735,7 +735,7 @@ async def find_intersecting_rows(pf: ParquetFile) -> dict[int, list[int]]:
             ]
 
             for row_index, bbox_tuple in enumerate(bbox_tuples):
-                if BBox(*(i[0] for i in bbox_tuple)).intersects(geom_bbox):
+                if BBox(*(i.value for i in bbox_tuple)).intersects(geom_bbox):
                     try:
                         matched_rows[rg.ordinal].append(row_index)
                     except KeyError:
@@ -798,7 +798,7 @@ async with AsyncHttpFile(file_url) as hf:
 
 # %%
 for row in row_indices:
-    print(name_rows[row])
+    print(name_rows[row].value)
 
 # %% [markdown]
 # Easy yeah?
@@ -842,10 +842,10 @@ json.loads(
 )
 
 # %% [markdown]
-# The `geometry` column we see here is encoded as WKB! Let's take a second look at the values in hex format and see if WKB seems a reasonable interpretation of these byte values. We have to extract just the value from our `(value, definition, repetition)` tuples though, so we'll do that first.
+# The `geometry` column we see here is encoded as WKB! Let's take a second look at the values in hex format and see if WKB seems a reasonable interpretation of these byte values. We have to extract just the value from our `PageValue` named tuples though, so we'll do that first.
 
 # %%
-geoms = [row[0] for row in geom_rows]
+geoms = [row.value for row in geom_rows]
 for _geom in geoms:
     print(_geom.hex())
 
