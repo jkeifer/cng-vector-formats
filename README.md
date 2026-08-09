@@ -71,6 +71,27 @@ Both generation steps are configured in `pyproject.toml`, by
 live in `notebooks/assets/` (tracked on `main`; the generator copies them
 along with the notebooks).
 
+### Changing the workshop location
+
+Every exercise is built around one building. It lives in `locations/`, one
+TOML file per location, holding the FeatureCollection exactly as pasted from
+geojson.io plus the names the prose uses. Everything else — the WKT, the
+ring points, the byte counts, the size ratio — is derived.
+
+    uv run scripts/set_location.py hiroshima
+
+That rewrites `src/*.py`, copies the location's screenshot to
+`notebooks/assets/geojson_io.png`, and records the new slug in
+`[tool.workshop]`. It verifies every site it is about to change is present
+exactly once first, so a hand-edited source aborts the run rather than being
+half-rewritten. `--check` runs that verification alone, and runs in CI.
+
+Afterwards, regenerate and **execute notebook 03**: the script cannot know
+whether the new building is actually found in Overture, or how many row groups
+match. That needs a real run.
+
+To add a location, drop a `<slug>.toml` and its screenshot in `locations/`.
+
 ### Editing
 
 Edit `src/NN_<name>.py` directly, or edit a completed notebook in Jupyter and
