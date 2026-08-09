@@ -6,14 +6,14 @@ readme = "README.md"
 authors = [
     { name = "Jarrett Keifer", email = "jkeifer0@gmail.com" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
     "aiohttp>=3.13.1",
     "devtools>=0.12.2",
-    "folium>=0.20.0",
+    "hctef[async]>=0.4.0",
+    "ipython>=9.16.1",
     "jupyterlab>=4.4.6",
-    "por-que>=0.3.3",
-    "pyarrow>=21.0.0",
+    "por-que>=0.5.0",
     "shapely>=2.1.1",
 ]
 
@@ -27,8 +27,9 @@ package = false
 dev = [
     "ipynb-scrubber>=0.4.1",
     "jupytext>=1.19.4",
+    "nbclient>=0.11.0",
     "prek>=0.4.8",
-    "ruff>=0.15.20",
+    "ruff>=0.16.2",
 ]
 
 [tool.ruff]
