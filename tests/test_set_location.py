@@ -209,6 +209,30 @@ def test_retarget_refuses_when_the_recorded_slug_line_is_unmatchable(tmp_path):
         assert (repo / 'src' / name).read_text() == text, f'{name} was modified'
 
 
+def test_retarget_refuses_when_the_recorded_slug_line_is_ambiguous(tmp_path):
+    """A second matching line means we cannot tell which one is authoritative."""
+    repo = _fixture_repo(tmp_path)
+    pyproject = repo / 'pyproject.toml'
+    pyproject.write_text(
+        pyproject.read_text() + f'\n[tool.elsewhere]\nlocation = "{OTHER}"\n'
+    )
+    before = {
+        name: (repo / 'src' / name).read_text()
+        for name in set_location.SRC_FILES.values()
+    }
+    with pytest.raises(SystemExit, match='matched 2'):
+        set_location.retarget(repo, _load(RECORDED), _load(OTHER))
+    for name, text in before.items():
+        assert (repo / 'src' / name).read_text() == text, f'{name} was modified'
+
+
+def test_rewrite_recorded_slug_replaces_the_one_line():
+    text = '[tool.workshop]\nlocation = "old"\n'
+    assert set_location.rewrite_recorded_slug(text, 'new') == (
+        '[tool.workshop]\nlocation = "new"\n'
+    )
+
+
 def test_load_rejects_an_unknown_slug():
     with pytest.raises(SystemExit, match='no location'):
         set_location.load('nowhere')
