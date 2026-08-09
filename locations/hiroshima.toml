@@ -1,0 +1,48 @@
+# FOSS4G 2026, Hiroshima. The venue is the RCC Bunka Center.
+building_name = "RCC Bunka Center"
+city          = "Hiroshima"
+region        = "Honshu"
+macro         = "Japan"
+screenshot    = "hiroshima.png"
+
+feature_collection = '''
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "buildingName": "RCC Bunka Center",
+        "floorCount": 7
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              132.4693292,
+              34.3952499
+            ],
+            [
+              132.4695581,
+              34.3951943
+            ],
+            [
+              132.469393,
+              34.3947249
+            ],
+            [
+              132.4691665,
+              34.3947776
+            ],
+            [
+              132.4693292,
+              34.3952499
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}
+'''
