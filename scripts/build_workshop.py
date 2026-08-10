@@ -258,6 +258,19 @@ def run(target: Path, *, clean_first: bool, overwrite_dirty: bool) -> int:
 
     print(f'built into {target}', file=sys.stderr)
     print(f'review with: git -C {target} status', file=sys.stderr)
+    print('publish with:', file=sys.stderr)
+    print(f'  git -C {target} add -A', file=sys.stderr)
+    print(
+        f'  PREK_ALLOW_NO_CONFIG=1 git -C {target} commit -m "Update notebooks"',
+        file=sys.stderr,
+    )
+    print(f'  git -C {target} push', file=sys.stderr)
+    print(
+        'PREK_ALLOW_NO_CONFIG=1 is required: git hooks are shared across all '
+        'worktrees,\n'
+        'and the workshop branch intentionally carries no pre-commit config.',
+        file=sys.stderr,
+    )
     return 0
 
 
