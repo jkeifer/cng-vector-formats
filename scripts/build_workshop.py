@@ -244,13 +244,6 @@ def run(target: Path, *, clean_first: bool, overwrite_dirty: bool) -> int:
 
     written = build(REPO_ROOT, target)
 
-    stale = unwritten(target, written)
-    if stale:
-        print('not written by this build:', file=sys.stderr)
-        for path in stale:
-            print(f'  {path}', file=sys.stderr)
-        print('re-run with --clean to remove', file=sys.stderr)
-
     print(f'built into {target}', file=sys.stderr)
     print(f'review with: git -C {target} status', file=sys.stderr)
     print('publish with:', file=sys.stderr)
@@ -266,6 +259,17 @@ def run(target: Path, *, clean_first: bool, overwrite_dirty: bool) -> int:
         'and the workshop branch intentionally carries no pre-commit config.',
         file=sys.stderr,
     )
+
+    # Printed last, after the success output above, so the one failure this
+    # report exists to catch -- a renamed exercise shipping silently -- does
+    # not scroll off above the happy path.
+    stale = unwritten(target, written)
+    if stale:
+        print('not written by this build:', file=sys.stderr)
+        for path in stale:
+            print(f'  {path}', file=sys.stderr)
+        print('re-run with --clean to remove', file=sys.stderr)
+
     return 0
 
 

@@ -92,7 +92,7 @@ environment to run docker.
 To begin, clone this repo:
 
 ```commandline
-git clone https://github.com/jkeifer/cng-vector-formats.git
+git clone --branch workshop https://github.com/jkeifer/cng-vector-formats.git
 cd cng-vector-formats
 ```
 
@@ -134,7 +134,7 @@ To get started, clone this repository and start up JupyterLab using `uv run`.
 Users will need to have `uv` installed to use this option.
 
 ```commandline
-git clone https://github.com/jkeifer/cng-vector-formats.git
+git clone --branch workshop https://github.com/jkeifer/cng-vector-formats.git
 cd cng-vector-formats
 uv run jupyter lab
 ```
