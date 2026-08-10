@@ -9,13 +9,18 @@ yourself.
 
 Typical use in this repo:
 
-    # Prepare the workshop branch worktree, then generate notebooks into it:
-    uv run scripts/worktree.py workshop                          # -> ./workshop
-    uv run scripts/generate_notebooks.py --output-dir ./workshop
+    # Prepare the workshop branch worktree, then publish into it:
+    uv run scripts/worktree.py workshop            # -> ./workshop
+    uv run scripts/build_workshop.py
     # ...review ./workshop, then `git -C ./workshop add/commit/push`.
 
-The same tool works for the data branch (or anything else) that needs content
-staged into a worktree for review.
+`build_workshop.py` calls this module itself to prepare the worktree it
+builds into, so a bare `uv run scripts/build_workshop.py` is normally all you
+need; run this script directly when you want the worktree without triggering
+a build, e.g. to inspect it first.
+
+The same tool works for any other branch that needs content staged into a
+worktree for review.
 """
 
 from __future__ import annotations
