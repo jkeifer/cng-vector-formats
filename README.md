@@ -69,9 +69,8 @@ Both generation steps are configured in `pyproject.toml`, by
 `[tool.ipynb-scrubber]` (input/output paths, tags) and `[tool.jupytext]` (the
 `src/` ↔ `notebooks/completed/` pairing). Static assets referenced by the
 notebooks live in `notebooks/assets/` (tracked on `main`). They are inputs, not
-generated output, so `[tool.generate-notebooks]` lists them twice: under `keep`
-so `--prune` leaves them alone, and under `copy` so they are copied into a
-`--output-dir` that is not this repo.
+generated output, so the publish build (below) copies them into the workshop
+worktree alongside the generated notebooks.
 
 ### Changing the workshop location
 
@@ -120,42 +119,27 @@ sync it back to the `.py`:
 uv run jupytext --sync src/*.py
 ```
 
-## Building & publishing
+## Publishing to the `workshop` branch
 
-Two small, composable scripts handle staging content onto the `workshop`
-branch. The generic `worktree.py` prepares (or reuses) a worktree for a branch;
-you then generate content into it, review, and commit yourself. Nothing is
-committed or pushed automatically.
+The `workshop` branch is a pure build artifact — every file on it is
+reproducible from `main`, so a publish replaces the tree rather than
+merging into it.
 
-```commandline
-# 1. Check out the workshop branch as a worktree at ./workshop
-uv run scripts/worktree.py workshop
+    uv run scripts/build_workshop.py
 
-# 2. Generate the notebooks + notes into that worktree
-uv run scripts/generate_notebooks.py --output-dir ./workshop
+That assembles the complete published tree into the `workshop` worktree:
+the files named by `[tool.workshop-build] include`, the `static/` overlay,
+the generated notebooks and notes, and a `pyproject.toml`/`uv.lock`
+derived from main's. Review with `git -C workshop status` and commit
+there.
 
-# 3. Review, then commit/push from the worktree
-cd workshop
-git add -A && git commit -m "Update notebooks" && git push
-```
+The build only writes. If a file was renamed or dropped, its old copy
+stays on the branch — the build reports any tracked file it did not
+write, and `--clean` removes them by rebuilding from an empty tree.
 
-Step 2 writes the exercise notebooks, the completed notebooks, and the notes
-into the worktree, and copies every `[tool.generate-notebooks]` `copy` path
-(currently `notebooks/assets/`) over the worktree's own. That copy is what
-carries a location change through to the published branch: without it the
-worktree keeps the previous building's screenshot, and because nothing in the
-worktree changed, `git status` there reports nothing amiss.
-
-`generate_notebooks.py` defaults `--output-dir` to the repo root, so a bare
-`uv run scripts/generate_notebooks.py` regenerates the notebooks in place
-(handy for a quick local check); the copy step is a no-op in that case. The
-generated notebooks are gitignored on `main`.
-
-The `workshop` branch maintains its **own** participant-facing README, notes,
-and runtime environment (a trimmed `pyproject.toml` with runtime deps only,
-plus its `uv.lock`, Dockerfile, `compose.yml`, and `.devcontainer`). Those are
-edited on the `workshop` branch, not copied from `main`; the generator only
-writes the notebooks, the notes, and the configured `copy` paths.
+Both modes refuse to run if the worktree has uncommitted changes, since
+those may be notebook edits made in Jupyter that are not yet synced back
+to `src/`. `--overwrite-dirty` discards them.
 
 ## Development environment
 
