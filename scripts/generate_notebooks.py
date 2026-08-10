@@ -206,6 +206,24 @@ def _prune_stale(stale: list[Path], output_dir: Path, roots: set[str]) -> None:
                 path.rmdir()
 
 
+def _assign_cell_ids(path: Path) -> None:
+    """Give every cell an id derived from its position.
+
+    nbformat mints a random uuid4 per cell, so a plain render rewrites every
+    cell of every notebook and a publish diff is pure churn. Deriving the id
+    from the notebook stem and cell index makes the render a pure function of
+    its source, with nothing to merge into.
+
+    ensure_ascii=False because the notebooks carry non-ASCII -- a building
+    name in kanji, em dashes in prose -- and escaping it would churn the diff
+    just as badly as random ids did.
+    """
+    notebook = json.loads(path.read_text())
+    for index, cell in enumerate(notebook['cells']):
+        cell['id'] = f'{path.stem}-{index:03d}'
+    path.write_text(json.dumps(notebook, indent=1, ensure_ascii=False) + '\n')
+
+
 def _render_completed(dest: Path) -> None:
     """Render src/<stem>.py -> dest via Jupytext.
 
@@ -217,15 +235,11 @@ def _render_completed(dest: Path) -> None:
         raise SystemExit(f'error: missing source file {src_py}')
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    # Cell ids are random (nbformat mints uuid4 hex), so a plain render assigns
-    # fresh ones every time and rewrites every cell of every notebook. --update
-    # merges into the existing file instead, keeping the ids stable; it only
-    # applies when there is something to merge into.
-    update = ['--update'] if dest.exists() else []
     subprocess.run(
-        ['jupytext', '--to', 'ipynb', *update, '--output', str(dest), str(src_py)],
+        ['jupytext', '--to', 'ipynb', '--output', str(dest), str(src_py)],
         check=True,
     )
+    _assign_cell_ids(dest)
 
 
 def _scrub(entry: FileEntry, options: ScrubbingOptions) -> None:

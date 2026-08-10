@@ -1,3 +1,5 @@
+import json
+
 from pathlib import Path
 
 import generate_notebooks as gn
@@ -130,3 +132,45 @@ def test_copy_inputs_copies_a_single_file(tmp_path, monkeypatch):
     gn._copy_inputs(('notebooks/assets/a.png',), output)
 
     assert (output / 'notebooks' / 'assets' / 'a.png').read_text() == 'current'
+
+
+def test_rendering_twice_is_byte_identical(tmp_path):
+    """The render must be a pure function of the source.
+
+    Random cell ids made this false, which is why the generator used
+    `jupytext --update` to merge into its own previous output.
+    """
+    first = tmp_path / 'a' / '01_is-geojson-cloud-native.ipynb'
+    second = tmp_path / 'b' / '01_is-geojson-cloud-native.ipynb'
+    gn._render_completed(first)
+    gn._render_completed(second)
+    assert first.read_bytes() == second.read_bytes()
+
+
+def test_cell_ids_are_positional(tmp_path):
+    dest = tmp_path / '01_is-geojson-cloud-native.ipynb'
+    gn._render_completed(dest)
+    ids = [c['id'] for c in json.loads(dest.read_text())['cells']]
+    assert ids[:3] == [
+        '01_is-geojson-cloud-native-000',
+        '01_is-geojson-cloud-native-001',
+        '01_is-geojson-cloud-native-002',
+    ]
+    assert len(set(ids)) == len(ids), 'ids must be unique'
+
+
+def test_cell_ids_satisfy_nbformat(tmp_path):
+    dest = tmp_path / '01_is-geojson-cloud-native.ipynb'
+    gn._render_completed(dest)
+    for cell in json.loads(dest.read_text())['cells']:
+        assert 1 <= len(cell['id']) <= 64
+        assert all(ch.isalnum() or ch in '-_' for ch in cell['id'])
+
+
+def test_non_ascii_is_not_escaped(tmp_path):
+    """The building name is in kanji; escaping it would churn every diff."""
+    dest = tmp_path / '01_is-geojson-cloud-native.ipynb'
+    gn._render_completed(dest)
+    raw = dest.read_text()
+    assert 'RCC文化センター' in raw
+    assert '\\u6587' not in raw
