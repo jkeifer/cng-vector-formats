@@ -39,12 +39,17 @@ def test_cell_ids_satisfy_nbformat(tmp_path):
 
 
 def test_non_ascii_is_not_escaped(tmp_path):
-    """The building name is in kanji; escaping it would churn every diff."""
+    """Escaping non-ASCII would churn every diff.
+
+    Asserts on prose that is fixed regardless of the active workshop
+    location (unlike the building name, which `set_location.py` rewrites --
+    see test_generate_notebooks's sibling test for the scrubbed notebook).
+    """
     dest = tmp_path / '01_is-geojson-cloud-native.ipynb'
     gn._render_completed(dest)
     raw = dest.read_text()
-    assert 'RCC文化センター' in raw
-    assert '\\u6587' not in raw
+    assert 'facade — how' in raw
+    assert '\\u2014' not in raw
 
 
 def _scrub_notebook_02(tmp_path: Path) -> Path:
