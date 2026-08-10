@@ -10,11 +10,13 @@ The py:percent files in src/ are the source of truth. This script:
 
 Both steps write into --output-dir, which is the directory that *contains* the
 `notebooks/` and `notes/` subdirectories. It defaults to the repo root (`.`), so
-a bare run regenerates the repo's own notebooks in place. Point it at a
-worktree to stage a dist branch, e.g.:
+a bare run regenerates the repo's own notebooks in place. Point it at any other
+directory to stage the generated files elsewhere, e.g.:
 
-    uv run scripts/worktree.py workshop            # -> ./workshop
-    uv run scripts/generate_notebooks.py --output-dir ./workshop
+    uv run scripts/generate_notebooks.py --output-dir /path/to/somewhere
+
+In this repo, notebook generation is one step of the full publish flow; see
+`build_workshop.py` for assembling the complete published tree.
 
 Filenames, tags, and clear-text are read from the [tool.ipynb-scrubber] config
 in pyproject.toml, so this stays single-sourced with the local `scrub-project`
