@@ -67,7 +67,7 @@ def test_build_writes_the_complete_tree(tmp_path):
     # from include
     assert 'Dockerfile' in relative
     assert '.devcontainer/devcontainer.json' in relative
-    # from dist/
+    # from static/
     assert 'README.md' in relative
     assert '.gitignore' in relative
     # generated
@@ -83,10 +83,10 @@ def test_build_writes_the_complete_tree(tmp_path):
         assert (tmp_path / path).is_file(), f'{path} reported but not written'
 
 
-def test_build_uses_the_dist_readme_not_the_contributor_one(tmp_path):
+def test_build_uses_the_static_readme_not_the_contributor_one(tmp_path):
     build_workshop.build(REPO, tmp_path)
     assert (tmp_path / 'README.md').read_text() == (
-        REPO / 'dist' / 'README.md'
+        REPO / 'static' / 'README.md'
     ).read_text()
 
 

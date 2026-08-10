@@ -25,7 +25,7 @@ package = false
 
 [tool.workshop-build]
 # Repo files that ship to participants unchanged. Files that differ from
-# main's live in dist/ instead; nothing appears in both places.
+# main's live in static/ instead; nothing appears in both places.
 include = [
     "Dockerfile",
     "compose.yml",

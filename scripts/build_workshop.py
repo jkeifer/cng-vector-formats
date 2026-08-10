@@ -3,7 +3,7 @@
 
 The `workshop` branch is a pure build artifact: every file on it is
 reproducible from `main`. This assembles that tree -- repo files named by
-[tool.workshop-build] include, the dist/ overlay, generated notebooks and
+[tool.workshop-build] include, the static/ overlay, generated notebooks and
 notes, and a derived pyproject/lock -- into the workshop worktree.
 """
 
@@ -18,7 +18,7 @@ import tomllib
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DIST_DIR = REPO_ROOT / 'dist'
+STATIC_DIR = REPO_ROOT / 'static'
 
 # Tables that participants need. Everything else in main's pyproject is
 # authoring machinery: dev dependencies, lint config, the scrubber's file
@@ -98,8 +98,8 @@ def build(repo: Path, staging: Path) -> set[Path]:
             raise SystemExit(f'error: include entry {name!r} does not exist')
         written += _copy(source, staging / name)
 
-    for source in sorted(p for p in DIST_DIR.rglob('*') if p.is_file()):
-        written += _copy(source, staging / source.relative_to(DIST_DIR))
+    for source in sorted(p for p in STATIC_DIR.rglob('*') if p.is_file()):
+        written += _copy(source, staging / source.relative_to(STATIC_DIR))
 
     for source in sorted(
         p for p in (repo / 'notebooks' / 'assets').rglob('*') if p.is_file()
