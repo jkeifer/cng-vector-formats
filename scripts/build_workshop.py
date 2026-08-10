@@ -9,6 +9,7 @@ notes, and a derived pyproject/lock -- into the workshop worktree.
 
 from __future__ import annotations
 
+import argparse
 import re
 import shutil
 import subprocess
@@ -53,12 +54,18 @@ def write_deps(repo: Path, staging: Path) -> None:
         derive_pyproject((repo / 'pyproject.toml').read_text()),
     )
     shutil.copyfile(repo / 'uv.lock', staging / 'uv.lock')
-    subprocess.run(
-        ['uv', 'lock', '--offline'],
-        cwd=staging,
-        check=True,
-        capture_output=True,
-    )
+    try:
+        subprocess.run(
+            ['uv', 'lock', '--offline'],
+            cwd=staging,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise SystemExit(
+            f'error: uv lock --offline failed in {staging}:\n{e.stderr}',
+        ) from e
 
 
 def load_include(pyproject: Path) -> tuple[str, ...]:
@@ -158,3 +165,85 @@ def build(repo: Path, staging: Path) -> set[Path]:
     written += [staging / 'pyproject.toml', staging / 'uv.lock']
 
     return {p.relative_to(staging) for p in written}
+
+
+def _git(worktree: Path, *args: str) -> str:
+    return subprocess.run(
+        ['git', '-C', str(worktree), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+
+def is_dirty(worktree: Path) -> bool:
+    """True if the worktree has uncommitted changes, tracked or untracked."""
+    return bool(_git(worktree, 'status', '--porcelain').strip())
+
+
+def unwritten(worktree: Path, written: set[Path]) -> list[Path]:
+    """Tracked files this build did not write.
+
+    A stale tracked file shows in `git status` as nothing at all, because it
+    is unchanged -- so without this, a renamed exercise leaves its old file on
+    the branch and it ships silently.
+    """
+    tracked = {Path(line) for line in _git(worktree, 'ls-files').splitlines() if line}
+    return sorted(tracked - written)
+
+
+def clean(worktree: Path) -> None:
+    """Remove every tracked file. Ignored files survive deliberately.
+
+    git rm rather than rm -rf, so git decides what is removable -- and the
+    multi-gigabyte .hctef-cache under the worktree is not refetched.
+    """
+    _git(worktree, 'rm', '-r', '--quiet', '--ignore-unmatch', '.')
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        '--clean',
+        action='store_true',
+        help='remove all tracked files from the worktree before building',
+    )
+    parser.add_argument(
+        '--overwrite-dirty',
+        action='store_true',
+        help='proceed even though the worktree has uncommitted changes',
+    )
+    args = parser.parse_args()
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import worktree
+
+    target = worktree.prepare_worktree('workshop', REPO_ROOT / 'workshop', orphan=False)
+
+    if is_dirty(target) and not args.overwrite_dirty:
+        raise SystemExit(
+            f'error: {target} has uncommitted changes.\n'
+            '  They may be an unpublished build, or notebook edits made in '
+            'Jupyter that are not yet synced back to src/.\n'
+            '  Commit them, or re-run with --overwrite-dirty to discard them.',
+        )
+
+    if args.clean:
+        clean(target)
+
+    written = build(REPO_ROOT, target)
+
+    stale = unwritten(target, written)
+    if stale:
+        print('not written by this build:', file=sys.stderr)
+        for path in stale:
+            print(f'  {path}', file=sys.stderr)
+        print('re-run with --clean to remove', file=sys.stderr)
+
+    print(f'built into {target}', file=sys.stderr)
+    print(f'review with: git -C {target} status', file=sys.stderr)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

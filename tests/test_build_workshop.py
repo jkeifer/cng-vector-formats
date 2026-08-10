@@ -168,3 +168,63 @@ def test_build_omits_a_configured_notes_file_that_was_never_written(tmp_path):
     absent = Path('notes/03_reading-parquet-the-hard-way.md')
     assert not (tmp_path / absent).exists(), 'precondition: 03 writes no notes'
     assert absent not in written
+
+
+def _fake_worktree(tmp_path):
+    """A git repo standing in for the workshop worktree."""
+    import subprocess
+
+    wt = tmp_path / 'wt'
+    wt.mkdir()
+    subprocess.run(['git', 'init', '-q'], cwd=wt, check=True)
+    subprocess.run(['git', 'config', 'user.email', 't@t'], cwd=wt, check=True)
+    subprocess.run(['git', 'config', 'user.name', 't'], cwd=wt, check=True)
+    return wt
+
+
+def _commit_all(wt):
+    import subprocess
+
+    subprocess.run(['git', 'add', '-A'], cwd=wt, check=True)
+    subprocess.run(['git', 'commit', '-qm', 'x'], cwd=wt, check=True)
+
+
+def test_unwritten_reports_tracked_files_the_build_did_not_write(tmp_path):
+    wt = _fake_worktree(tmp_path)
+    (wt / 'kept.txt').write_text('a')
+    (wt / 'orphan.txt').write_text('b')
+    _commit_all(wt)
+    stale = build_workshop.unwritten(wt, {Path('kept.txt')})
+    assert [str(p) for p in stale] == ['orphan.txt']
+
+
+def test_unwritten_ignores_untracked_files(tmp_path):
+    wt = _fake_worktree(tmp_path)
+    (wt / 'tracked.txt').write_text('a')
+    _commit_all(wt)
+    (wt / 'scratch.txt').write_text('b')
+    assert build_workshop.unwritten(wt, {Path('tracked.txt')}) == []
+
+
+def test_is_dirty_detects_modified_and_untracked(tmp_path):
+    wt = _fake_worktree(tmp_path)
+    (wt / 'a.txt').write_text('a')
+    _commit_all(wt)
+    assert not build_workshop.is_dirty(wt)
+    (wt / 'a.txt').write_text('changed')
+    assert build_workshop.is_dirty(wt)
+    (wt / 'a.txt').write_text('a')
+    assert not build_workshop.is_dirty(wt)
+    (wt / 'new.txt').write_text('n')
+    assert build_workshop.is_dirty(wt)
+
+
+def test_clean_removes_tracked_files_only(tmp_path):
+    wt = _fake_worktree(tmp_path)
+    (wt / 'tracked.txt').write_text('a')
+    _commit_all(wt)
+    (wt / 'ignored.txt').write_text('i')
+    (wt / '.gitignore').write_text('ignored.txt\n')
+    build_workshop.clean(wt)
+    assert not (wt / 'tracked.txt').exists()
+    assert (wt / 'ignored.txt').exists(), 'ignored files must survive'
