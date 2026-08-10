@@ -30,6 +30,7 @@ include = [
     "Dockerfile",
     "compose.yml",
     ".devcontainer",
+    "notebooks/assets",
 ]
 
 [tool.workshop]

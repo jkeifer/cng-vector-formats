@@ -150,11 +150,6 @@ def build(repo: Path, staging: Path) -> set[Path]:
     for source in sorted(p for p in static_dir.rglob('*') if p.is_file()):
         written += _copy(source, staging / source.relative_to(static_dir))
 
-    for source in sorted(
-        p for p in (repo / 'notebooks' / 'assets').rglob('*') if p.is_file()
-    ):
-        written += _copy(source, staging / 'notebooks' / 'assets' / source.name)
-
     generate_notebooks.generate(staging)
     # Bookkeeping stays a separate step after generate() rather than being
     # folded into it: _generated checks which notes files actually landed on
