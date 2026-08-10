@@ -51,3 +51,54 @@ def test_write_deps_produces_a_strict_subset_of_the_repo_lock(tmp_path):
     assert not drift, f'versions drifted: {drift}'
     for dev_only in ('pytest', 'ruff', 'prek', 'jupytext', 'ipynb-scrubber'):
         assert dev_only not in workshop_pkgs
+
+
+def test_load_include_reads_the_table():
+    include = build_workshop.load_include(REPO / 'pyproject.toml')
+    assert 'Dockerfile' in include
+    assert 'compose.yml' in include
+    assert '.devcontainer' in include
+
+
+def test_build_writes_the_complete_tree(tmp_path):
+    written = build_workshop.build(REPO, tmp_path)
+    relative = {str(p) for p in written}
+
+    # from include
+    assert 'Dockerfile' in relative
+    assert '.devcontainer/devcontainer.json' in relative
+    # from dist/
+    assert 'README.md' in relative
+    assert '.gitignore' in relative
+    # generated
+    assert 'notebooks/01_is-geojson-cloud-native.ipynb' in relative
+    assert 'notebooks/completed/01_is-geojson-cloud-native.ipynb' in relative
+    assert 'notes/01_is-geojson-cloud-native.md' in relative
+    assert 'notebooks/assets/geojson_io.png' in relative
+    # derived
+    assert 'pyproject.toml' in relative
+    assert 'uv.lock' in relative
+
+    for path in written:
+        assert (tmp_path / path).is_file(), f'{path} reported but not written'
+
+
+def test_build_uses_the_dist_readme_not_the_contributor_one(tmp_path):
+    build_workshop.build(REPO, tmp_path)
+    assert (tmp_path / 'README.md').read_text() == (
+        REPO / 'dist' / 'README.md'
+    ).read_text()
+
+
+def test_build_is_idempotent(tmp_path):
+    """Two builds of the same source must produce identical bytes.
+
+    This is the property that makes a from-scratch publish reviewable: if
+    it fails, every publish diff is churn and the review step is useless.
+    """
+    first, second = tmp_path / 'one', tmp_path / 'two'
+    build_workshop.build(REPO, first)
+    build_workshop.build(REPO, second)
+    for path in sorted(p for p in first.rglob('*') if p.is_file()):
+        counterpart = second / path.relative_to(first)
+        assert counterpart.read_bytes() == path.read_bytes(), path

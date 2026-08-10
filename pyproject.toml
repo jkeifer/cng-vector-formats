@@ -23,6 +23,15 @@ Repository = 'https://github.com/jkeifer/cng-vector-formats'
 [tool.uv]
 package = false
 
+[tool.workshop-build]
+# Repo files that ship to participants unchanged. Files that differ from
+# main's live in dist/ instead; nothing appears in both places.
+include = [
+    "Dockerfile",
+    "compose.yml",
+    ".devcontainer",
+]
+
 [tool.workshop]
 # The location the src/ files currently contain. Change it with
 # `uv run scripts/set_location.py <slug>`, never by hand.

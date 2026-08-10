@@ -12,10 +12,13 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import sys
+import tomllib
 
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+DIST_DIR = REPO_ROOT / 'dist'
 
 # Tables that participants need. Everything else in main's pyproject is
 # authoring machinery: dev dependencies, lint config, the scrubber's file
@@ -57,3 +60,61 @@ def write_deps(repo: Path, staging: Path) -> None:
         check=True,
         capture_output=True,
     )
+
+
+def load_include(pyproject: Path) -> tuple[str, ...]:
+    """Repo paths that ship to participants unchanged."""
+    with pyproject.open('rb') as f:
+        data = tomllib.load(f)
+    include = data.get('tool', {}).get('workshop-build', {}).get('include', [])
+    if not isinstance(include, list) or not all(isinstance(i, str) for i in include):
+        raise SystemExit(
+            'error: [tool.workshop-build] include must be a list of strings',
+        )
+    return tuple(include)
+
+
+def _copy(source: Path, dest: Path) -> list[Path]:
+    """Copy a file or directory tree, returning the files written."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if source.is_dir():
+        shutil.copytree(source, dest, dirs_exist_ok=True)
+        return [p for p in dest.rglob('*') if p.is_file()]
+    shutil.copyfile(source, dest)
+    return [dest]
+
+
+def build(repo: Path, staging: Path) -> set[Path]:
+    """Assemble the complete published tree. Returns paths relative to staging."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import generate_notebooks
+
+    staging.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+
+    for name in load_include(repo / 'pyproject.toml'):
+        source = repo / name
+        if not source.exists():
+            raise SystemExit(f'error: include entry {name!r} does not exist')
+        written += _copy(source, staging / name)
+
+    for source in sorted(p for p in DIST_DIR.rglob('*') if p.is_file()):
+        written += _copy(source, staging / source.relative_to(DIST_DIR))
+
+    for source in sorted(
+        p for p in (repo / 'notebooks' / 'assets').rglob('*') if p.is_file()
+    ):
+        written += _copy(source, staging / 'notebooks' / 'assets' / source.name)
+
+    generate_notebooks.generate(staging)
+    written += [
+        p
+        for root in ('notebooks', 'notes')
+        for p in (staging / root).rglob('*')
+        if p.is_file()
+    ]
+
+    write_deps(repo, staging)
+    written += [staging / 'pyproject.toml', staging / 'uv.lock']
+
+    return {p.relative_to(staging) for p in written}
