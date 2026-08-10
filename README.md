@@ -137,9 +137,22 @@ pushed automatically — review and publish yourself:
 uv run scripts/build_workshop.py
 git -C workshop status                     # review
 git -C workshop add -A
-git -C workshop commit -m "Update notebooks"
+PREK_ALLOW_NO_CONFIG=1 git -C workshop commit -m "Update notebooks"
 git -C workshop push
 ```
+
+`PREK_ALLOW_NO_CONFIG=1` on the commit is required, not optional. Git
+keeps a single `.git/hooks` directory shared by every worktree of a
+repository, so the `prek` pre-commit hook installed for contributor work
+also fires inside `workshop`. That branch deliberately carries no
+`.pre-commit-config.yaml` — it is a build artifact, and contributor lint
+config is not part of what participants receive — so the hook would abort
+the commit with `No prek.toml or .pre-commit-config.yaml found`. The
+variable lets the hook no-op on its own terms, which is preferable to
+`--no-verify` (that would disable hook execution wholesale). Do not
+"fix" this by adding a pre-commit config to the `workshop` branch: the
+build would drop it on the next publish anyway, since the branch only
+ever contains what `build_workshop.py` writes.
 
 The build only writes. If a file was renamed or dropped, its old copy
 stays on the branch — and since it is unchanged, `git status` there says
