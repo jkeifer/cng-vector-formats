@@ -3,6 +3,7 @@ import tomllib
 from pathlib import Path
 
 import build_workshop
+import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -228,3 +229,121 @@ def test_clean_removes_tracked_files_only(tmp_path):
     build_workshop.clean(wt)
     assert not (wt / 'tracked.txt').exists()
     assert (wt / 'ignored.txt').exists(), 'ignored files must survive'
+
+
+def _recording_build(calls, names=('built.txt',)):
+    """A stand-in for build() that records its calls and writes `names`.
+
+    run()'s job is orchestration -- guard, then clean, then build, then the
+    cruft report -- and build() itself is covered thoroughly above. Faking it
+    keeps these tests about that ordering, and fast.
+    """
+
+    def fake(repo, staging):
+        written = set()
+        for name in names:
+            path = Path(staging) / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('built')
+            written.add(Path(name))
+        calls.append((repo, Path(staging)))
+        return written
+
+    return fake
+
+
+def test_run_refuses_a_dirty_worktree(tmp_path, monkeypatch):
+    wt = _fake_worktree(tmp_path)
+    (wt / 'a.txt').write_text('a')
+    _commit_all(wt)
+    (wt / 'a.txt').write_text('dirty')
+
+    calls = []
+    monkeypatch.setattr(build_workshop, 'build', _recording_build(calls))
+
+    with pytest.raises(SystemExit) as excinfo:
+        build_workshop.run(wt, clean_first=False, overwrite_dirty=False)
+    assert 'uncommitted changes' in str(excinfo.value)
+    assert calls == [], 'the build must not run'
+    assert (wt / 'a.txt').read_text() == 'dirty', 'the dirty file must survive'
+
+
+def test_run_refuses_a_dirty_worktree_in_clean_mode(tmp_path, monkeypatch):
+    """The guard covers --clean too, and is checked before clean() acts.
+
+    Narrowing it to the default mode would leave --clean deleting notebook
+    edits made in Jupyter that exist nowhere else yet.
+    """
+    wt = _fake_worktree(tmp_path)
+    (wt / 'a.txt').write_text('a')
+    _commit_all(wt)
+    (wt / 'new.txt').write_text('n')
+
+    calls = []
+    monkeypatch.setattr(build_workshop, 'build', _recording_build(calls))
+
+    with pytest.raises(SystemExit) as excinfo:
+        build_workshop.run(wt, clean_first=True, overwrite_dirty=False)
+    assert 'uncommitted changes' in str(excinfo.value)
+    assert calls == [], 'the build must not run'
+    assert (wt / 'a.txt').exists(), 'clean() must not have run'
+    assert (wt / 'new.txt').exists()
+
+
+def test_run_overwrite_dirty_bypasses_the_guard(tmp_path, monkeypatch):
+    wt = _fake_worktree(tmp_path)
+    (wt / 'a.txt').write_text('a')
+    _commit_all(wt)
+    (wt / 'a.txt').write_text('dirty')
+
+    calls = []
+    monkeypatch.setattr(build_workshop, 'build', _recording_build(calls))
+
+    assert build_workshop.run(wt, clean_first=False, overwrite_dirty=True) == 0
+    assert len(calls) == 1, 'the build must run'
+    # The default build only writes. A dirty file it does not write survives,
+    # which is why "--overwrite-dirty discards them" was the wrong wording.
+    assert (wt / 'a.txt').read_text() == 'dirty'
+
+
+def test_run_clean_overwrite_dirty_removes_a_modified_tracked_file(
+    tmp_path,
+    monkeypatch,
+):
+    """git rm refuses a locally modified file unless forced.
+
+    This combination is the only way to reach clean() with a dirty worktree,
+    since the guard blocks it otherwise -- so without -f the one documented
+    escape hatch is exactly the broken one, and it fails with git's
+    explanation thrown away.
+    """
+    wt = _fake_worktree(tmp_path)
+    (wt / 'a.txt').write_text('a')
+    _commit_all(wt)
+    (wt / 'a.txt').write_text('locally modified')
+
+    calls = []
+    monkeypatch.setattr(build_workshop, 'build', _recording_build(calls))
+
+    assert build_workshop.run(wt, clean_first=True, overwrite_dirty=True) == 0
+    assert not (wt / 'a.txt').exists(), 'the modified tracked file must be removed'
+    assert (wt / 'built.txt').exists()
+
+
+def test_run_reports_a_tracked_file_the_build_did_not_write(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    wt = _fake_worktree(tmp_path)
+    (wt / 'orphan.txt').write_text('o')
+    _commit_all(wt)
+
+    calls = []
+    monkeypatch.setattr(build_workshop, 'build', _recording_build(calls))
+
+    assert build_workshop.run(wt, clean_first=False, overwrite_dirty=False) == 0
+    err = capsys.readouterr().err
+    assert 'not written by this build:' in err
+    assert 'orphan.txt' in err
+    assert '--clean' in err
