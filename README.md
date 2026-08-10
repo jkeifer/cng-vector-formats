@@ -129,17 +129,31 @@ merging into it.
 
 That assembles the complete published tree into the `workshop` worktree:
 the files named by `[tool.workshop-build] include`, the `static/` overlay,
-the generated notebooks and notes, and a `pyproject.toml`/`uv.lock`
-derived from main's. Review with `git -C workshop status` and commit
-there.
+the generated notebooks and notes, `notebooks/assets/`, and a
+`pyproject.toml`/`uv.lock` derived from main's. Nothing is committed or
+pushed automatically — review and publish yourself:
+
+```commandline
+uv run scripts/build_workshop.py
+git -C workshop status                     # review
+git -C workshop add -A
+git -C workshop commit -m "Update notebooks"
+git -C workshop push
+```
 
 The build only writes. If a file was renamed or dropped, its old copy
-stays on the branch — the build reports any tracked file it did not
-write, and `--clean` removes them by rebuilding from an empty tree.
+stays on the branch — and since it is unchanged, `git status` there says
+nothing at all, so the build reports every tracked file it did not write.
+`--clean` removes those, by `git rm`-ing all tracked files before
+building. Ignored files deliberately survive that: the worktree holds a
+multi-gigabyte `.hctef-cache` that notebook 03 would otherwise refetch.
 
 Both modes refuse to run if the worktree has uncommitted changes, since
 those may be notebook edits made in Jupyter that are not yet synced back
-to `src/`. `--overwrite-dirty` discards them.
+to `src/`. `--overwrite-dirty` proceeds anyway; what that costs depends on
+the mode. The default build overwrites only the files it writes, so
+unrelated dirty files survive; `--clean` deletes every tracked file first,
+modifications included.
 
 ## Development environment
 

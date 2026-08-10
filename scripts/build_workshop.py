@@ -168,12 +168,23 @@ def build(repo: Path, staging: Path) -> set[Path]:
 
 
 def _git(worktree: Path, *args: str) -> str:
-    return subprocess.run(
-        ['git', '-C', str(worktree), *args],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
+    """Run git in worktree, surfacing its diagnostic if it fails.
+
+    check=True with capture_output throws git's explanation away and leaves
+    the user a bare "returned non-zero exit status 1", so the stderr git went
+    to the trouble of writing is re-raised as the error message.
+    """
+    try:
+        return subprocess.run(
+            ['git', '-C', str(worktree), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    except subprocess.CalledProcessError as e:
+        raise SystemExit(
+            f'error: git {" ".join(args)} failed in {worktree}:\n{e.stderr}',
+        ) from e
 
 
 def is_dirty(worktree: Path) -> bool:
@@ -187,8 +198,15 @@ def unwritten(worktree: Path, written: set[Path]) -> list[Path]:
     A stale tracked file shows in `git status` as nothing at all, because it
     is unchanged -- so without this, a renamed exercise leaves its old file on
     the branch and it ships silently.
+
+    -z because with the default core.quotePath a non-ASCII path comes back
+    quoted and backslash-escaped ("sub/caf\\303\\251.txt"), which can never
+    match a Path from build() -- it would be reported as cruft forever, and
+    --clean could never resolve it.
     """
-    tracked = {Path(line) for line in _git(worktree, 'ls-files').splitlines() if line}
+    tracked = {
+        Path(name) for name in _git(worktree, 'ls-files', '-z').split('\0') if name
+    }
     return sorted(tracked - written)
 
 
@@ -197,8 +215,50 @@ def clean(worktree: Path) -> None:
 
     git rm rather than rm -rf, so git decides what is removable -- and the
     multi-gigabyte .hctef-cache under the worktree is not refetched.
+
+    -f because git rm refuses a file with local modifications otherwise. This
+    is only reachable in two states: the dirty guard passed, so the worktree
+    is clean and -f changes nothing; or the user passed --overwrite-dirty,
+    which authorises losing uncommitted worktree changes -- exactly what -f
+    does. Forcing is correct in both, not a workaround for the error.
     """
-    _git(worktree, 'rm', '-r', '--quiet', '--ignore-unmatch', '.')
+    _git(worktree, 'rm', '-r', '-f', '--quiet', '--ignore-unmatch', '.')
+
+
+def run(target: Path, *, clean_first: bool, overwrite_dirty: bool) -> int:
+    """Build into an already-resolved worktree. Returns an exit status.
+
+    Split from main() so the guard can be tested against a throwaway repo:
+    main() resolves the real workshop worktree, and a test reaching that
+    would rebuild -- or with --clean, delete -- the developer's own.
+    """
+    if is_dirty(target) and not overwrite_dirty:
+        raise SystemExit(
+            f'error: {target} has uncommitted changes.\n'
+            '  They may be an unpublished build, or notebook edits made in '
+            'Jupyter that are not yet synced back to src/.\n'
+            '  Commit them, or re-run with --overwrite-dirty: the build then '
+            'overwrites\n'
+            '  any dirty file it writes and leaves the rest, and --clean '
+            'additionally\n'
+            '  deletes every tracked file, modifications included.',
+        )
+
+    if clean_first:
+        clean(target)
+
+    written = build(REPO_ROOT, target)
+
+    stale = unwritten(target, written)
+    if stale:
+        print('not written by this build:', file=sys.stderr)
+        for path in stale:
+            print(f'  {path}', file=sys.stderr)
+        print('re-run with --clean to remove', file=sys.stderr)
+
+    print(f'built into {target}', file=sys.stderr)
+    print(f'review with: git -C {target} status', file=sys.stderr)
+    return 0
 
 
 def main() -> int:
@@ -220,29 +280,7 @@ def main() -> int:
 
     target = worktree.prepare_worktree('workshop', REPO_ROOT / 'workshop', orphan=False)
 
-    if is_dirty(target) and not args.overwrite_dirty:
-        raise SystemExit(
-            f'error: {target} has uncommitted changes.\n'
-            '  They may be an unpublished build, or notebook edits made in '
-            'Jupyter that are not yet synced back to src/.\n'
-            '  Commit them, or re-run with --overwrite-dirty to discard them.',
-        )
-
-    if args.clean:
-        clean(target)
-
-    written = build(REPO_ROOT, target)
-
-    stale = unwritten(target, written)
-    if stale:
-        print('not written by this build:', file=sys.stderr)
-        for path in stale:
-            print(f'  {path}', file=sys.stderr)
-        print('re-run with --clean to remove', file=sys.stderr)
-
-    print(f'built into {target}', file=sys.stderr)
-    print(f'review with: git -C {target} status', file=sys.stderr)
-    return 0
+    return run(target, clean_first=args.clean, overwrite_dirty=args.overwrite_dirty)
 
 
 if __name__ == '__main__':
