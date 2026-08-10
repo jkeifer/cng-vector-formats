@@ -256,8 +256,11 @@ def _scrub(entry: FileEntry, options: ScrubbingOptions) -> None:
         write_notes_file(notes, entry.notes_file)
 
     entry.output.parent.mkdir(parents=True, exist_ok=True)
-    # indent=1 matches what `ipynb-scrubber scrub-project` writes.
-    entry.output.write_text(json.dumps(processed, indent=1))
+    # indent=1 matches what `ipynb-scrubber scrub-project` writes. The rest
+    # matches _assign_cell_ids: the exercise notebooks are published alongside
+    # the completed ones, so escaping their non-ASCII churns the diff just as
+    # badly.
+    entry.output.write_text(json.dumps(processed, indent=1, ensure_ascii=False) + '\n')
     print(f'✓ {entry.input} → {entry.output}', file=sys.stderr)
 
 
