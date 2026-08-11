@@ -1,5 +1,5 @@
 # Generated notebooks + notes. The source of truth is src/*.py; the notebooks
-# are generated on demand (see scripts/generate_notebooks.py) and published to
+# are generated on demand (run `uv run workshopify generate`) and published to
 # the workshop branch, never committed on main. Static assets referenced by
 # the notebooks (notebooks/assets/) stay tracked.
 /notebooks/*.ipynb
@@ -7,7 +7,8 @@
 /notes/
 
 # Git worktree checked out inside the repo for the dist branch (see
-# scripts/worktree.py). The `workshop` branch holds the generated notebooks +
+# `uv run workshopify build`, or `uv run workshopify worktree`). The `workshop`
+# branch holds the generated notebooks +
 # participant-facing files.
 /workshop/
 
