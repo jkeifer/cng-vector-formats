@@ -23,11 +23,12 @@ Repository = 'https://github.com/jkeifer/cng-vector-formats'
 [tool.uv]
 package = false
 
-[tool.uv.workspace]
-members = ["workshopify"]
-
 [tool.uv.sources]
-workshopify = { workspace = true }
+# A path source rather than a workspace member: workshopify is its own
+# repository and owns its own uv.lock, and uv does not permit a workspace
+# member to do that (nested workspaces are rejected outright). The install is
+# still editable, so edits under workshopify/src take effect immediately.
+workshopify = { path = "workshopify", editable = true }
 
 [tool.workshopify]
 # The context module: its module-level names are the namespace the cog
@@ -49,9 +50,9 @@ include = [
     ".devcontainer",
     "notebooks/assets",
 ]
-# The workspace wiring must not reach participants, who have no
+# The workshopify source must not reach participants, who have no
 # workshopify checkout to point at.
-drop-keys = ["tool.uv.workspace", "tool.uv.sources"]
+drop-keys = ["tool.uv.sources"]
 
 [tool.workshopify.params]
 # The location the src/ files currently contain. Change it with
@@ -93,7 +94,7 @@ lines-between-types = 1
 combine-as-imports = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "workshopify/tests"]
+testpaths = ["tests"]
 
 [tool.jupytext]
 # The py:percent files in src/ are the source of truth, named for their

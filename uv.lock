@@ -2,12 +2,6 @@ version = 1
 revision = 3
 requires-python = ">=3.14"
 
-[manifest]
-members = [
-    "cng-vector-formats",
-    "workshopify",
-]
-
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.7.1"

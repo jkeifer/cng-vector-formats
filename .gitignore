@@ -183,3 +183,8 @@ dmypy.json
 cython_debug/
 
 /.quarto/
+
+# workshopify is a separate git repository that, for now, still lives in this
+# directory. It is consumed through the editable path source in pyproject.toml.
+# When it moves out, that source becomes a git or PyPI dependency.
+/workshopify/
