@@ -73,6 +73,7 @@ SRC = """\
 # <!--[[[end]]]-->
 
 # %% tags=["scrub-note"]
+#| scrub-note: tags=["scrub-note"]
 # a note that lands in the notes file
 
 # %% tags=["scrub-clear"]
