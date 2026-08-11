@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """Generate the completed + exercise notebooks (and notes) from the src/ files.
 
-The py:percent files in src/ are the source of truth. This script:
+The py:percent files in src/ are the source of truth. For each one, entirely
+in memory until the final write:
 
-  1. Renders each src/NN_<name>.py to a completed .ipynb under
-     notebooks/completed/ via Jupytext.
-  2. Runs ipynb-scrubber over each completed notebook to produce the exercise
+  1. Strip the embedded cog templating (render.publish), which also validates
+     that the stripped text is a structurally sound py:percent document.
+  2. Convert to a notebook via the jupytext API and give every cell an id
+     derived from its position, writing the completed .ipynb under
+     notebooks/completed/.
+  3. Run ipynb-scrubber over the in-memory notebook to produce the exercise
      notebook (notebooks/NN_<name>.ipynb) + notes file (notes/NN_<name>.md).
 
-Both steps write into --output-dir, which is the directory that *contains* the
+All steps write into --output-dir, which is the directory that *contains* the
 `notebooks/` and `notes/` subdirectories. It defaults to the repo root (`.`), so
 a bare run regenerates the repo's own notebooks in place. Point it at any other
 directory to stage the generated files elsewhere, e.g.:
@@ -29,16 +33,19 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 
 from dataclasses import replace
 from pathlib import Path
 
+import jupytext
+import render
+
 from common import REPO_ROOT, ScriptError
 from ipynb_scrubber.config import FileEntry, ProjectConfig, ScrubbingOptions
 from ipynb_scrubber.exceptions import ScrubberError
 from ipynb_scrubber.processor import process_notebook, write_notes_file
+from jupytext.config import load_jupytext_configuration_file
 
 SRC_DIR = REPO_ROOT / 'src'
 PYPROJECT = REPO_ROOT / 'pyproject.toml'
@@ -57,43 +64,49 @@ def _rebase(entry: FileEntry, output_dir: Path) -> FileEntry:
     )
 
 
-def _assign_cell_ids(path: Path) -> None:
-    """Give every cell an id derived from its position.
-
-    nbformat mints a random uuid4 per cell, so a plain render rewrites every
-    cell of every notebook and a publish diff is pure churn. Deriving the id
-    from the notebook stem and cell index makes the render a pure function of
-    its source, with nothing to merge into.
+def _dump(notebook: dict, dest: Path) -> None:
+    """One convention for every .ipynb written: the completed and exercise
+    notebooks are published side by side, so they must agree on it.
 
     ensure_ascii=False because the notebooks carry non-ASCII -- a building
-    name in kanji, em dashes in prose -- and escaping it would churn the diff
-    just as badly as random ids did.
+    name in kanji, em dashes in prose -- and escaping it would churn every
+    publish diff; indent=1 matches what `ipynb-scrubber scrub-project` writes.
     """
-    notebook = json.loads(path.read_text())
-    for index, cell in enumerate(notebook['cells']):
-        cell['id'] = f'{path.stem}-{index:03d}'
-    path.write_text(json.dumps(notebook, indent=1, ensure_ascii=False) + '\n')
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(notebook, indent=1, ensure_ascii=False) + '\n')
 
 
-def _render_completed(dest: Path) -> None:
-    """Render src/<stem>.py -> dest via Jupytext.
+def _render_completed(dest: Path, namespace: dict) -> dict:
+    """src/<stem>.py -> the completed notebook: written to dest and returned.
 
-    The scrubber input paths (e.g. notebooks/completed/01_<name>.ipynb) share
-    their stem with the src/ file they are rendered from.
+    Cell ids are derived from the notebook stem and cell index. nbformat mints
+    a random uuid4 per cell, so without this a plain render rewrites every cell
+    of every notebook and a publish diff is pure churn; positional ids make the
+    render a pure function of its source, with nothing to merge into.
     """
     src_py = SRC_DIR / f'{dest.stem}.py'
     if not src_py.exists():
         raise ScriptError(f'error: missing source file {src_py}')
 
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        ['jupytext', '--to', 'ipynb', '--output', str(dest), str(src_py)],
-        check=True,
+    published = render.publish(src_py.read_text(), namespace, str(src_py))
+    # The [tool.jupytext] config must reach the API calls explicitly; only the
+    # CLI discovers it. Without it the cell metadata filter that keeps
+    # `raises-exception` tags falls back to defaults.
+    config = load_jupytext_configuration_file(str(PYPROJECT))
+    notebook = json.loads(
+        jupytext.writes(
+            jupytext.reads(published, fmt='py:percent', config=config),
+            fmt='ipynb',
+            config=config,
+        ),
     )
-    _assign_cell_ids(dest)
+    for index, cell in enumerate(notebook['cells']):
+        cell['id'] = f'{dest.stem}-{index:03d}'
+    _dump(notebook, dest)
+    return notebook
 
 
-def _scrub(entry: FileEntry, options: ScrubbingOptions) -> bool:
+def _scrub(notebook: dict, entry: FileEntry, options: ScrubbingOptions) -> bool:
     """Completed notebook -> exercise notebook (+ notes), via the scrubber API.
 
     Returns whether a notes file was written. This is the code that decides
@@ -101,7 +114,6 @@ def _scrub(entry: FileEntry, options: ScrubbingOptions) -> bool:
     note-tagged cells -- so it is the only place that can answer without
     re-deriving the answer from the filesystem afterwards.
     """
-    notebook = json.loads(entry.input.read_text())
     processed, notes = process_notebook(notebook, options)
 
     if notes:
@@ -112,12 +124,7 @@ def _scrub(entry: FileEntry, options: ScrubbingOptions) -> bool:
             )
         write_notes_file(notes, entry.notes_file)
 
-    entry.output.parent.mkdir(parents=True, exist_ok=True)
-    # indent=1 matches what `ipynb-scrubber scrub-project` writes. The rest
-    # matches _assign_cell_ids: the exercise notebooks are published alongside
-    # the completed ones, so escaping their non-ASCII churns the diff just as
-    # badly.
-    entry.output.write_text(json.dumps(processed, indent=1, ensure_ascii=False) + '\n')
+    _dump(processed, entry.output)
     print(f'✓ {entry.input} → {entry.output}', file=sys.stderr)
     return bool(notes)
 
@@ -140,11 +147,12 @@ def generate(output_dir: Path) -> list[Path]:
     except ScrubberError as e:
         raise ScriptError(f'error: {e}') from e
 
+    namespace = render.context()
     written: list[Path] = []
     for configured in config.files:
         entry = _rebase(configured, output_dir)
-        _render_completed(entry.input)
-        wrote_notes = _scrub(entry, entry.get_options(config.global_options))
+        notebook = _render_completed(entry.input, namespace)
+        wrote_notes = _scrub(notebook, entry, entry.get_options(config.global_options))
         # The completed and exercise notebooks are written unconditionally.
         written += [entry.input, entry.output]
         if wrote_notes:

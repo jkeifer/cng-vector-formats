@@ -24,7 +24,7 @@ import set_location
 # Every file a retarget writes. Guarded below.
 TRACKED = [
     Path('pyproject.toml'),
-    *(Path('src') / name for name in set_location.SRC_FILES),
+    *sorted(p.relative_to(REPO) for p in (REPO / 'src').glob('*.py')),
     set_location.ACTIVE_SCREENSHOT,
 ]
 

@@ -1,46 +1,18 @@
 import json
-import re
 
 from pathlib import Path
 
 import location
 import pytest
-import set_location
 
 from conftest import REPO
 
 LOCATIONS = REPO / 'locations'
 
 
-def _payload(pattern: str, text: str) -> str:
-    """The one match with a real payload.
-
-    The `#| scrub-note:` lines carry near-identical assignments whose value is
-    placeholder text like "PASTE YOUR GEOJSON GEOMETRY HERE"; length
-    discriminates them from the real one.
-    """
-    matches = [m for m in re.findall(pattern, text, re.DOTALL) if len(m) > 100]
-    assert len(matches) == 1, f'expected 1 payload for {pattern!r}, got {len(matches)}'
-    return matches[0]
-
-
 def auckland() -> location.Location:
     """A specific location, for assertions about that location's own data."""
     return location.Location.load(LOCATIONS / 'auckland.toml')
-
-
-def recorded() -> location.Location:
-    """Whichever location `src/` currently contains.
-
-    Deliberately separate from `auckland()`. The tests below that read `src/`
-    assert that the formatters reproduce what is actually there, which is a
-    location-independent contract; naming a location in them instead only
-    happened to hold while that location was the one set, and broke the moment
-    the workshop was retargeted.
-    """
-    return location.Location.load(
-        LOCATIONS / f'{set_location.recorded_slug(REPO)}.toml'
-    )
 
 
 def test_load_reads_the_names():
@@ -68,37 +40,14 @@ def test_absolute_screenshot_is_used_as_is(tmp_path):
 
 def test_feature_collection_has_no_trailing_newline():
     # TOML's ''' keeps the newline before the closing delimiter. That byte
-    # would land in the "910 bytes" claim if it survived.
+    # would land in exercise 1's byte-count claim if it survived.
     assert not auckland().feature_collection.endswith('\n')
     assert len(auckland().feature_collection) == 910
 
 
-def test_geojson_str_matches_the_current_source():
-    text = (REPO / 'src' / '01_is-geojson-cloud-native.py').read_text()
-    assert recorded().feature_collection == _payload(r'geojson_str = """(.*?)"""', text)
-
-
-def test_geom_str_matches_the_current_source():
-    text = (REPO / 'src' / '02_the-well-knowns.py').read_text()
-    assert recorded().geom_str == _payload(r'geom_str = """(.*?)"""', text)
-
-
-def test_wkt_matches_the_current_source():
-    text = (REPO / 'src' / '02_the-well-knowns.py').read_text()
-    literal = re.search(r"^wkt = '(POLYGON.*?)'$", text, re.MULTILINE).group(1)
-    assert recorded().wkt == literal
-
-
-def test_ring_points_matches_the_current_source():
-    text = (REPO / 'src' / '02_the-well-knowns.py').read_text()
-    literal = re.search(r'ring_points = \[\n(.*?)\n\]', text, re.DOTALL).group(1)
-    assert recorded().ring_points == literal
-
-
-def test_geom_pretty_matches_the_current_source():
-    text = (REPO / 'src' / '03_reading-parquet-the-hard-way.py').read_text()
-    literal = _payload(r'geom = json\.loads\("""(.*?)"""\)', text)
-    assert recorded().geom_pretty == literal
+def test_recorded_loads_the_slug_pyproject_records():
+    loc = location.recorded(REPO)
+    assert (LOCATIONS / f'{loc.slug}.toml').is_file()
 
 
 def test_every_location_parses():
@@ -203,59 +152,3 @@ def test_the_error_names_the_file(tmp_path):
     path = _location_with(tmp_path, '{"type": "FeatureCollection", "features": []}')
     with pytest.raises(location.LocationError, match='broken.toml'):
         location.Location.load(path)
-
-
-def test_derived_values_for_auckland():
-    d = auckland().derived
-    assert d.geojson_bytes == '910'
-    assert d.ring_count == '6'
-    assert d.sample_pair == '[174.76510987799577,-36.853728372411425],'
-    assert d.sample_pair_bytes == '41'
-    assert d.sample_x == '174.76536299052356'
-    assert d.wkt_wkb_ratio == '2.2'
-
-
-def test_derived_values_for_hiroshima():
-    """The non-ASCII location: 700 characters, 712 bytes."""
-    loc = location.Location.load(LOCATIONS / 'hiroshima.toml')
-    d = loc.derived
-    assert len(loc.feature_collection) == 700
-    assert d.geojson_bytes == '712'
-    assert d.ring_count == '5'
-    assert d.sample_pair == '[132.469393,34.3947249],'
-    assert d.sample_pair_bytes == '24'
-    assert d.sample_x == '132.4693292'
-    assert d.wkt_wkb_ratio == '1.4'
-
-
-def test_geojson_bytes_counts_bytes_not_characters(tmp_path):
-    """`len()` on a str counts characters; exercise 1 claims bytes."""
-    path = _location_with(
-        tmp_path,
-        '{"type": "FeatureCollection", "features": [{"type": "Feature",'
-        ' "properties": {"buildingName": "文化"}, "geometry":'
-        ' {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1],'
-        ' [0, 0]]]}}]}',
-    )
-    loc = location.Location.load(path)
-    assert '文化' in loc.feature_collection
-    characters = len(loc.feature_collection)
-    assert loc.derived.geojson_bytes == str(characters + 4)
-
-
-def test_utf8_len_is_the_encoded_length():
-    assert location.utf8_len('abc') == 3
-    assert location.utf8_len('文化') == 6
-
-
-def test_derived_values_appear_verbatim_in_the_sources():
-    d = recorded().derived
-    one = (REPO / 'src' / '01_is-geojson-cloud-native.py').read_text()
-    two = (REPO / 'src' / '02_the-well-knowns.py').read_text()
-    assert one.count(f'{d.geojson_bytes} bytes') == 1
-    assert one.count(d.sample_pair) == 1
-    assert one.count(f'{d.sample_pair_bytes} bytes') == 1
-    assert two.count(f'{d.wkt_wkb_ratio}x smaller') == 1
-    # Backticked, so it does not collide with the six bare occurrences inside
-    # the geom_str/wkt/ring_points renderings.
-    assert two.count(f'`{d.sample_x}`') == 1

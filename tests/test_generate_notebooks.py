@@ -1,8 +1,11 @@
-import json
-
 from pathlib import Path
 
 import generate_notebooks as gn
+import render
+
+
+def _render(dest: Path) -> dict:
+    return gn._render_completed(dest, render.context())
 
 
 def test_rendering_twice_is_byte_identical(tmp_path):
@@ -13,15 +16,14 @@ def test_rendering_twice_is_byte_identical(tmp_path):
     """
     first = tmp_path / 'a' / '01_is-geojson-cloud-native.ipynb'
     second = tmp_path / 'b' / '01_is-geojson-cloud-native.ipynb'
-    gn._render_completed(first)
-    gn._render_completed(second)
+    _render(first)
+    _render(second)
     assert first.read_bytes() == second.read_bytes()
 
 
 def test_cell_ids_are_positional(tmp_path):
     dest = tmp_path / '01_is-geojson-cloud-native.ipynb'
-    gn._render_completed(dest)
-    ids = [c['id'] for c in json.loads(dest.read_text())['cells']]
+    ids = [c['id'] for c in _render(dest)['cells']]
     assert ids[:3] == [
         '01_is-geojson-cloud-native-000',
         '01_is-geojson-cloud-native-001',
@@ -32,21 +34,27 @@ def test_cell_ids_are_positional(tmp_path):
 
 def test_cell_ids_satisfy_nbformat(tmp_path):
     dest = tmp_path / '01_is-geojson-cloud-native.ipynb'
-    gn._render_completed(dest)
-    for cell in json.loads(dest.read_text())['cells']:
+    for cell in _render(dest)['cells']:
         assert 1 <= len(cell['id']) <= 64
         assert all(ch.isalnum() or ch in '-_' for ch in cell['id'])
+
+
+def test_no_templating_reaches_the_notebook(tmp_path):
+    """The published notebooks must carry no cog markers or generators."""
+    dest = tmp_path / '01_is-geojson-cloud-native.ipynb'
+    _render(dest)
+    assert '[[[' not in dest.read_text()
 
 
 def test_non_ascii_is_not_escaped(tmp_path):
     """Escaping non-ASCII would churn every diff.
 
     Asserts on prose that is fixed regardless of the active workshop
-    location (unlike the building name, which `set_location.py` rewrites --
-    see test_generate_notebooks's sibling test for the scrubbed notebook).
+    location (unlike the building name, which retargeting rewrites --
+    see the sibling test for the scrubbed notebook).
     """
     dest = tmp_path / '01_is-geojson-cloud-native.ipynb'
-    gn._render_completed(dest)
+    _render(dest)
     raw = dest.read_text()
     assert 'facade — how' in raw
     assert '\\u2014' not in raw
@@ -64,8 +72,8 @@ def _scrub_notebook_02(tmp_path: Path) -> Path:
         tmp_path,
     )
     entry.notes_file.parent.mkdir(parents=True, exist_ok=True)
-    gn._render_completed(entry.input)
-    gn._scrub(entry, entry.get_options(config.global_options))
+    notebook = gn._render_completed(entry.input, render.context())
+    gn._scrub(notebook, entry, entry.get_options(config.global_options))
     return entry.output
 
 

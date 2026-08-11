@@ -79,7 +79,11 @@
 # 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  # Point 4: (0.0, 0.0)
 # ```
 #
-# Now in this trivial example, the representation is not actually more compact than the WKT representation. With real-world coordinate values like `132.4693292`, the WKB representation ends up about 1.4x smaller than the WKT string representation before compression. Note that ratio depends on how much precision the coordinates carry: WKB always spends 16 bytes per point no matter what, while WKT spends roughly one byte per digit, so coordinates rounded to fewer decimal places narrow the gap considerably (of course, if you are asking "why 64-bit double floats instead of fixed precision values": don't get me started, I don't understand it either--I can only think early GIS software used floats and the inertia continues to this day).
+# Now in this trivial example, the representation is not actually more compact than the WKT representation. With real-world coordinate values like
+# <!--[[[cog md(f"`{loc.ring[0][0]!r}`, the WKB representation ends up about {utf8_len(loc.wkt) / (13 + 16 * len(loc.ring)):.1f}x") ]]]-->
+# `132.4693292`, the WKB representation ends up about 1.4x
+# <!--[[[end]]]-->
+# smaller than the WKT string representation before compression. Note that ratio depends on how much precision the coordinates carry: WKB always spends 16 bytes per point no matter what, while WKT spends roughly one byte per digit, so coordinates rounded to fewer decimal places narrow the gap considerably (of course, if you are asking "why 64-bit double floats instead of fixed precision values": don't get me started, I don't understand it either--I can only think early GIS software used floats and the inertia continues to this day).
 #
 # But the data size is not the real benefit of WKB: it's actually the parsing speed that really matters. It is much more efficient to take these binary values and unpack them directly into numeric types without string-to-float conversion, handling delimiters, etc. At scale with millions of geometries this makes a massive difference.
 #
@@ -106,6 +110,7 @@ from shapely import from_wkb as shapely_from_wkb, wkt as shapely_wkt
 
 # %%
 #| scrub-note: cell0 | geom_str = """PASTE YOUR GEOJSON GEOMETRY HERE"""
+# <!--[[[cog cog.outl(f'geom_str = """{loc.geom_str}"""') ]]]-->
 geom_str = """{
     "coordinates": [[
         [132.4693292, 34.3952499],
@@ -116,13 +121,16 @@ geom_str = """{
     ]],
     "type": "Polygon"
 }"""
+# <!--[[[end]]]-->
 
 # %% [markdown]
 # Now, let's write this Polygon geometry out in WKT format by hand.
 
 # %%
 #| scrub-note: cell1 | wkt = 'WRITE YOUR WKT POLYGON HERE'
+# <!--[[[cog cog.outl(f"wkt = {loc.wkt!r}") ]]]-->
 wkt = 'POLYGON((132.4693292 34.3952499, 132.4695581 34.3951943, 132.469393 34.3947249, 132.4691665 34.3947776, 132.4693292 34.3952499))'
+# <!--[[[end]]]-->
 wkt
 
 # %% [markdown]
@@ -151,6 +159,11 @@ shapely_wkt.loads(wkt)
 endianness = 1
 geom_type = 3
 ring_count = 1
+# <!--[[[cog
+# cog.outl("ring_points = [")
+# cog.outl(loc.ring_points)
+# cog.outl("]")
+# ]]]-->
 ring_points = [
     (132.4693292, 34.3952499),
     (132.4695581, 34.3951943),
@@ -158,6 +171,7 @@ ring_points = [
     (132.4691665, 34.3947776),
     (132.4693292, 34.3952499),
 ]
+# <!--[[[end]]]-->
 
 # %% [markdown]
 # #### A quick note about `struct`
