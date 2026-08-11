@@ -5,7 +5,7 @@ from pathlib import Path
 import location
 import pytest
 
-from conftest import REPO
+from tests.conftest import REPO
 
 LOCATIONS = REPO / 'locations'
 
