@@ -31,6 +31,8 @@ import sys
 
 from pathlib import Path
 
+from common import ScriptError
+
 
 def _git(*args: str, capture: bool = False) -> str:
     result = subprocess.run(
@@ -99,7 +101,7 @@ def prepare_worktree(branch: str, path: Path, orphan: bool) -> Path:
     for existing_path, existing_branch in worktrees.items():
         if existing_branch == branch:
             if existing_path != path:
-                raise SystemExit(
+                raise ScriptError(
                     f'error: branch {branch!r} is already checked out at '
                     f'{existing_path} (requested {path}). Reuse that path or '
                     f'remove it with `git worktree remove`.',
@@ -108,12 +110,12 @@ def prepare_worktree(branch: str, path: Path, orphan: bool) -> Path:
 
     # Nothing checked out `branch` yet. The target path must be free.
     if path in worktrees:
-        raise SystemExit(
+        raise ScriptError(
             f'error: {path} is already a worktree for branch '
             f'{worktrees[path]!r}, not {branch!r}',
         )
     if path.exists() and any(path.iterdir()):
-        raise SystemExit(f'error: {path} exists and is not empty')
+        raise ScriptError(f'error: {path} exists and is not empty')
 
     if _branch_exists(branch):
         _git('worktree', 'add', str(path), branch)
@@ -123,7 +125,7 @@ def prepare_worktree(branch: str, path: Path, orphan: bool) -> Path:
     # a remote -- on a fresh clone that is the normal case for `workshop`.
     remotes = _remotes_with_branch(branch)
     if len(remotes) > 1:
-        raise SystemExit(
+        raise ScriptError(
             f'error: branch {branch!r} exists on multiple remotes '
             f'({", ".join(sorted(remotes))}) and no local branch resolves the '
             f'ambiguity. Create it locally first, e.g. `git branch {branch} '
@@ -168,7 +170,13 @@ def main() -> int:
     args = parser.parse_args()
 
     path = args.path or Path(f'./{args.branch}')
-    result = prepare_worktree(args.branch, path, args.orphan)
+    # The only place a worktree failure becomes an exit status: callers of
+    # `prepare_worktree` (build_workshop, and anything else that composes with
+    # it) get the diagnostic as an exception and decide for themselves.
+    try:
+        result = prepare_worktree(args.branch, path, args.orphan)
+    except ScriptError as e:
+        raise SystemExit(str(e)) from e
     print(result)
     return 0
 

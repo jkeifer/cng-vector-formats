@@ -7,7 +7,8 @@ import location
 import pytest
 import set_location
 
-REPO = Path(__file__).resolve().parent.parent
+from common import ScriptError
+from conftest import REPO
 
 SLUGS = sorted(p.stem for p in (REPO / 'locations').glob('*.toml'))
 
@@ -109,10 +110,10 @@ def test_retarget_writes_nothing_when_verification_fails(tmp_path):
     }
     try:
         set_location.retarget(repo, _load(RECORDED), _load(OTHER))
-    except SystemExit:
+    except ScriptError:
         pass
     else:
-        raise AssertionError('expected SystemExit')
+        raise AssertionError('expected ScriptError')
     assert path.read_text() == broken
     for name, text in others.items():
         assert (repo / 'src' / name).read_text() == text, f'{name} was modified'
@@ -181,7 +182,7 @@ def test_retarget_refuses_a_location_whose_screenshot_is_missing(tmp_path):
     before = {
         name: (repo / 'src' / name).read_text() for name in set_location.SRC_FILES
     }
-    with pytest.raises(SystemExit, match='nope.png'):
+    with pytest.raises(ScriptError, match='nope.png'):
         set_location.retarget(repo, _load(RECORDED), broken)
     for name, text in before.items():
         assert (repo / 'src' / name).read_text() == text, f'{name} was modified'
@@ -199,7 +200,7 @@ def test_retarget_refuses_when_the_recorded_slug_line_is_unmatchable(tmp_path):
     before = {
         name: (repo / 'src' / name).read_text() for name in set_location.SRC_FILES
     }
-    with pytest.raises(SystemExit, match='matched 0'):
+    with pytest.raises(ScriptError, match='matched 0'):
         set_location.retarget(repo, _load(RECORDED), _load(OTHER))
     for name, text in before.items():
         assert (repo / 'src' / name).read_text() == text, f'{name} was modified'
@@ -215,7 +216,7 @@ def test_retarget_refuses_when_the_recorded_slug_line_is_ambiguous(tmp_path):
     before = {
         name: (repo / 'src' / name).read_text() for name in set_location.SRC_FILES
     }
-    with pytest.raises(SystemExit, match='matched 2'):
+    with pytest.raises(ScriptError, match='matched 2'):
         set_location.retarget(repo, _load(RECORDED), _load(OTHER))
     for name, text in before.items():
         assert (repo / 'src' / name).read_text() == text, f'{name} was modified'
@@ -229,7 +230,7 @@ def test_rewrite_recorded_slug_replaces_the_one_line():
 
 
 def test_load_rejects_an_unknown_slug():
-    with pytest.raises(SystemExit, match='no location'):
+    with pytest.raises(ScriptError, match='no location'):
         set_location.load('nowhere')
 
 
@@ -244,7 +245,7 @@ def test_recorded_slug_rejects_a_missing_table(tmp_path):
     pyproject.write_text(
         pyproject.read_text().replace('[tool.workshop]', '[tool.nothing]')
     )
-    with pytest.raises(SystemExit, match='no .tool.workshop. location'):
+    with pytest.raises(ScriptError, match='no .tool.workshop. location'):
         set_location.recorded_slug(repo)
 
 
@@ -286,6 +287,11 @@ def test_main_check_fails_on_a_drifted_repo(tmp_path, monkeypatch, capsys):
 
 
 def test_main_unknown_slug_exits(tmp_path, monkeypatch):
+    """The CLI, unlike `load` above, turns the failure into an exit.
+
+    Same message either way: main() re-raises what it caught, so the boundary
+    decides the exit and nothing else changes.
+    """
     _isolate(monkeypatch, _fixture_repo(tmp_path))
     monkeypatch.setattr('sys.argv', ['set_location.py', 'nowhere'])
     with pytest.raises(SystemExit, match='no location'):

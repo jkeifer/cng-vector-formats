@@ -21,7 +21,7 @@ from pathlib import Path
 import generate_notebooks
 import worktree
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+from common import REPO_ROOT, ScriptError
 
 # Tables that participants need. Everything else in main's pyproject is
 # authoring machinery: dev dependencies, lint config, the scrubber's file
@@ -58,9 +58,9 @@ def derive_pyproject(text: str) -> str:
     try:
         leaked = sorted(set(tomllib.loads(derived)) - allowed)
     except tomllib.TOMLDecodeError as e:
-        raise SystemExit(f'error: derived pyproject.toml does not parse: {e}') from e
+        raise ScriptError(f'error: derived pyproject.toml does not parse: {e}') from e
     if leaked:
-        raise SystemExit(f'error: derived pyproject.toml kept extra tables: {leaked}')
+        raise ScriptError(f'error: derived pyproject.toml kept extra tables: {leaked}')
     return derived
 
 
@@ -85,7 +85,7 @@ def write_deps(repo: Path, staging: Path) -> None:
             text=True,
         )
     except subprocess.CalledProcessError as e:
-        raise SystemExit(
+        raise ScriptError(
             f'error: uv lock --offline failed in {staging}:\n{e.stderr}',
         ) from e
 
@@ -96,7 +96,7 @@ def load_include(pyproject: Path) -> tuple[str, ...]:
         data = tomllib.load(f)
     include = data.get('tool', {}).get('workshop-build', {}).get('include', [])
     if not isinstance(include, list) or not all(isinstance(i, str) for i in include):
-        raise SystemExit(
+        raise ScriptError(
             'error: [tool.workshop-build] include must be a list of strings',
         )
     return tuple(include)
@@ -134,7 +134,7 @@ def build(repo: Path, staging: Path) -> set[Path]:
     for name in load_include(repo / 'pyproject.toml'):
         source = repo / name
         if not source.exists():
-            raise SystemExit(f'error: include entry {name!r} does not exist')
+            raise ScriptError(f'error: include entry {name!r} does not exist')
         written += _copy(source, staging / name)
 
     static_dir = repo / 'static'
@@ -164,7 +164,7 @@ def _git(worktree: Path, *args: str) -> str:
             text=True,
         ).stdout
     except subprocess.CalledProcessError as e:
-        raise SystemExit(
+        raise ScriptError(
             f'error: git {" ".join(args)} failed in {worktree}:\n{e.stderr}',
         ) from e
 
@@ -207,15 +207,15 @@ def clean(worktree: Path) -> None:
     _git(worktree, 'rm', '-r', '-f', '--quiet', '--ignore-unmatch', '.')
 
 
-def run(target: Path, *, clean_first: bool, overwrite_dirty: bool) -> int:
-    """Build into an already-resolved worktree. Returns an exit status.
+def _build_into(target: Path, *, clean_first: bool, overwrite_dirty: bool) -> int:
+    """The publish itself: guard, clean, build, then report cruft.
 
-    Split from main() so the guard can be tested against a throwaway repo:
-    main() resolves the real workshop worktree, and a test reaching that
-    would rebuild -- or with --clean, delete -- the developer's own.
+    Reports every failure -- its own guard's, and those of the steps it calls
+    -- as a ScriptError. `run` below is the boundary that decides what one
+    costs.
     """
     if is_dirty(target) and not overwrite_dirty:
-        raise SystemExit(
+        raise ScriptError(
             f'error: {target} has uncommitted changes.\n'
             '  They may be an unpublished build, or notebook edits made in '
             'Jupyter that are not yet synced back to src/.\n'
@@ -260,6 +260,28 @@ def run(target: Path, *, clean_first: bool, overwrite_dirty: bool) -> int:
     return 0
 
 
+def run(target: Path, *, clean_first: bool, overwrite_dirty: bool) -> int:
+    """Build into an already-resolved worktree. Returns an exit status.
+
+    Split from main() so the guard can be tested against a throwaway repo:
+    main() resolves the real workshop worktree, and a test reaching that
+    would rebuild -- or with --clean, delete -- the developer's own.
+
+    This is the outermost entry point a build goes through -- main() adds only
+    argument parsing and the worktree -- so it is where a diagnosed failure
+    becomes an exit status, and the steps below it stay callable by anything
+    that would rather handle one than die.
+    """
+    try:
+        return _build_into(
+            target,
+            clean_first=clean_first,
+            overwrite_dirty=overwrite_dirty,
+        )
+    except ScriptError as e:
+        raise SystemExit(str(e)) from e
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -274,7 +296,16 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    target = worktree.prepare_worktree('workshop', REPO_ROOT / 'workshop', orphan=False)
+    # Only the worktree needs wrapping here: `run` already converts everything
+    # the build itself can raise.
+    try:
+        target = worktree.prepare_worktree(
+            'workshop',
+            REPO_ROOT / 'workshop',
+            orphan=False,
+        )
+    except ScriptError as e:
+        raise SystemExit(str(e)) from e
 
     return run(target, clean_first=args.clean, overwrite_dirty=args.overwrite_dirty)
 
