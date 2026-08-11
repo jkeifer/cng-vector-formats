@@ -27,7 +27,7 @@ def _fixture_repo(tmp_path: Path) -> Path:
     repo = tmp_path / 'repo'
     (repo / 'src').mkdir(parents=True)
     (repo / 'notebooks' / 'assets').mkdir(parents=True)
-    for name in set_location.SRC_FILES.values():
+    for name in set_location.SRC_FILES:
         shutil.copy(REPO / 'src' / name, repo / 'src' / name)
     shutil.copy(REPO / 'pyproject.toml', repo / 'pyproject.toml')
     shutil.copytree(REPO / 'locations', repo / 'locations')
@@ -50,9 +50,9 @@ def _load(slug: str) -> location.Location:
 
 def _break_the_wkt(repo: Path) -> str:
     """Replace the recorded location's WKT literal with a bogus one."""
-    path = repo / 'src' / set_location.SRC_FILES['02']
+    path = repo / 'src' / set_location.SRC_WELL_KNOWNS
     text = path.read_text()
-    wkt = location.format_wkt(_load(RECORDED))
+    wkt = _load(RECORDED).wkt
     assert wkt in text, 'the fixture does not contain the recorded WKT'
     broken = text.replace(wkt, 'POLYGON((0 0))')
     path.write_text(broken)
@@ -73,16 +73,15 @@ def test_verify_reports_a_site_it_cannot_find(tmp_path):
 def test_retarget_then_back_is_byte_identical(tmp_path):
     repo = _fixture_repo(tmp_path)
     before = {
-        name: (repo / 'src' / name).read_text()
-        for name in set_location.SRC_FILES.values()
+        name: (repo / 'src' / name).read_text() for name in set_location.SRC_FILES
     }
     set_location.retarget(repo, _load(RECORDED), _load(OTHER))
     assert any(
         (repo / 'src' / name).read_text() != before[name]
-        for name in set_location.SRC_FILES.values()
+        for name in set_location.SRC_FILES
     ), 'retarget changed nothing'
     set_location.retarget(repo, _load(OTHER), _load(RECORDED))
-    for name in set_location.SRC_FILES.values():
+    for name in set_location.SRC_FILES:
         assert (repo / 'src' / name).read_text() == before[name]
 
 
@@ -101,12 +100,12 @@ def test_retarget_updates_the_recorded_slug(tmp_path):
 
 def test_retarget_writes_nothing_when_verification_fails(tmp_path):
     repo = _fixture_repo(tmp_path)
-    path = repo / 'src' / set_location.SRC_FILES['02']
+    path = repo / 'src' / set_location.SRC_WELL_KNOWNS
     broken = _break_the_wkt(repo)
     others = {
         name: (repo / 'src' / name).read_text()
-        for name in set_location.SRC_FILES.values()
-        if name != set_location.SRC_FILES['02']
+        for name in set_location.SRC_FILES
+        if name != set_location.SRC_WELL_KNOWNS
     }
     try:
         set_location.retarget(repo, _load(RECORDED), _load(OTHER))
@@ -137,8 +136,7 @@ def test_every_ordered_pair_round_trips(tmp_path, start, other):
     assert set_location.verify(repo, _load(start)) == []
 
     before = {
-        name: (repo / 'src' / name).read_text()
-        for name in set_location.SRC_FILES.values()
+        name: (repo / 'src' / name).read_text() for name in set_location.SRC_FILES
     }
 
     set_location.retarget(repo, _load(start), _load(other))
@@ -181,8 +179,7 @@ def test_retarget_refuses_a_location_whose_screenshot_is_missing(tmp_path):
         feature_collection=target.feature_collection,
     )
     before = {
-        name: (repo / 'src' / name).read_text()
-        for name in set_location.SRC_FILES.values()
+        name: (repo / 'src' / name).read_text() for name in set_location.SRC_FILES
     }
     with pytest.raises(SystemExit, match='nope.png'):
         set_location.retarget(repo, _load(RECORDED), broken)
@@ -200,8 +197,7 @@ def test_retarget_refuses_when_the_recorded_slug_line_is_unmatchable(tmp_path):
         )
     )
     before = {
-        name: (repo / 'src' / name).read_text()
-        for name in set_location.SRC_FILES.values()
+        name: (repo / 'src' / name).read_text() for name in set_location.SRC_FILES
     }
     with pytest.raises(SystemExit, match='matched 0'):
         set_location.retarget(repo, _load(RECORDED), _load(OTHER))
@@ -217,8 +213,7 @@ def test_retarget_refuses_when_the_recorded_slug_line_is_ambiguous(tmp_path):
         pyproject.read_text() + f'\n[tool.elsewhere]\nlocation = "{OTHER}"\n'
     )
     before = {
-        name: (repo / 'src' / name).read_text()
-        for name in set_location.SRC_FILES.values()
+        name: (repo / 'src' / name).read_text() for name in set_location.SRC_FILES
     }
     with pytest.raises(SystemExit, match='matched 2'):
         set_location.retarget(repo, _load(RECORDED), _load(OTHER))

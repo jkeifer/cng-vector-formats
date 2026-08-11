@@ -20,7 +20,7 @@ import set_location
 # Every file a retarget writes. Guarded below.
 TRACKED = [
     Path('pyproject.toml'),
-    *(Path('src') / name for name in set_location.SRC_FILES.values()),
+    *(Path('src') / name for name in set_location.SRC_FILES),
     set_location.ACTIVE_SCREENSHOT,
 ]
 

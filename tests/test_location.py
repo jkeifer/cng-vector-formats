@@ -74,34 +74,30 @@ def test_feature_collection_has_no_trailing_newline():
 
 def test_geojson_str_matches_the_current_source():
     text = (REPO / 'src' / '01_is-geojson-cloud-native.py').read_text()
-    assert location.format_geojson_str(recorded()) == _payload(
-        r'geojson_str = """(.*?)"""', text
-    )
+    assert recorded().feature_collection == _payload(r'geojson_str = """(.*?)"""', text)
 
 
 def test_geom_str_matches_the_current_source():
     text = (REPO / 'src' / '02_the-well-knowns.py').read_text()
-    assert location.format_geom_str(recorded()) == _payload(
-        r'geom_str = """(.*?)"""', text
-    )
+    assert recorded().geom_str == _payload(r'geom_str = """(.*?)"""', text)
 
 
 def test_wkt_matches_the_current_source():
     text = (REPO / 'src' / '02_the-well-knowns.py').read_text()
     literal = re.search(r"^wkt = '(POLYGON.*?)'$", text, re.MULTILINE).group(1)
-    assert location.format_wkt(recorded()) == literal
+    assert recorded().wkt == literal
 
 
 def test_ring_points_matches_the_current_source():
     text = (REPO / 'src' / '02_the-well-knowns.py').read_text()
     literal = re.search(r'ring_points = \[\n(.*?)\n\]', text, re.DOTALL).group(1)
-    assert location.format_ring_points(recorded()) == literal
+    assert recorded().ring_points == literal
 
 
 def test_geom_pretty_matches_the_current_source():
     text = (REPO / 'src' / '03_reading-parquet-the-hard-way.py').read_text()
     literal = _payload(r'geom = json\.loads\("""(.*?)"""\)', text)
-    assert location.format_geom_pretty(recorded()) == literal
+    assert recorded().geom_pretty == literal
 
 
 def test_every_location_parses():
@@ -155,7 +151,7 @@ def test_load_rejects_zero_features(tmp_path):
 
 
 def test_load_rejects_a_multipolygon(tmp_path):
-    """Otherwise this reaches format_wkt as `too many values to unpack`."""
+    """Otherwise this reaches `Location.wkt` as `too many values to unpack`."""
     path = _location_with(
         tmp_path,
         '{"type": "FeatureCollection", "features": [{"type": "Feature",'
@@ -207,26 +203,26 @@ def test_the_error_names_the_file(tmp_path):
 
 
 def test_derived_values_for_auckland():
-    d = location.derived(auckland())
-    assert d['geojson_bytes'] == '910'
-    assert d['ring_count'] == '6'
-    assert d['sample_pair'] == '[174.76510987799577,-36.853728372411425],'
-    assert d['sample_pair_bytes'] == '41'
-    assert d['sample_x'] == '174.76536299052356'
-    assert d['wkt_wkb_ratio'] == '2.2'
+    d = auckland().derived
+    assert d.geojson_bytes == '910'
+    assert d.ring_count == '6'
+    assert d.sample_pair == '[174.76510987799577,-36.853728372411425],'
+    assert d.sample_pair_bytes == '41'
+    assert d.sample_x == '174.76536299052356'
+    assert d.wkt_wkb_ratio == '2.2'
 
 
 def test_derived_values_for_hiroshima():
     """The non-ASCII location: 700 characters, 712 bytes."""
     loc = location.Location.load(LOCATIONS / 'hiroshima.toml')
-    d = location.derived(loc)
+    d = loc.derived
     assert len(loc.feature_collection) == 700
-    assert d['geojson_bytes'] == '712'
-    assert d['ring_count'] == '5'
-    assert d['sample_pair'] == '[132.469393,34.3947249],'
-    assert d['sample_pair_bytes'] == '24'
-    assert d['sample_x'] == '132.4693292'
-    assert d['wkt_wkb_ratio'] == '1.4'
+    assert d.geojson_bytes == '712'
+    assert d.ring_count == '5'
+    assert d.sample_pair == '[132.469393,34.3947249],'
+    assert d.sample_pair_bytes == '24'
+    assert d.sample_x == '132.4693292'
+    assert d.wkt_wkb_ratio == '1.4'
 
 
 def test_geojson_bytes_counts_bytes_not_characters(tmp_path):
@@ -241,7 +237,7 @@ def test_geojson_bytes_counts_bytes_not_characters(tmp_path):
     loc = location.Location.load(path)
     assert '文化' in loc.feature_collection
     characters = len(loc.feature_collection)
-    assert location.derived(loc)['geojson_bytes'] == str(characters + 4)
+    assert loc.derived.geojson_bytes == str(characters + 4)
 
 
 def test_utf8_len_is_the_encoded_length():
@@ -250,13 +246,13 @@ def test_utf8_len_is_the_encoded_length():
 
 
 def test_derived_values_appear_verbatim_in_the_sources():
-    d = location.derived(recorded())
+    d = recorded().derived
     one = (REPO / 'src' / '01_is-geojson-cloud-native.py').read_text()
     two = (REPO / 'src' / '02_the-well-knowns.py').read_text()
-    assert one.count(f'{d["geojson_bytes"]} bytes') == 1
-    assert one.count(d['sample_pair']) == 1
-    assert one.count(f'{d["sample_pair_bytes"]} bytes') == 1
-    assert two.count(f'{d["wkt_wkb_ratio"]}x smaller') == 1
+    assert one.count(f'{d.geojson_bytes} bytes') == 1
+    assert one.count(d.sample_pair) == 1
+    assert one.count(f'{d.sample_pair_bytes} bytes') == 1
+    assert two.count(f'{d.wkt_wkb_ratio}x smaller') == 1
     # Backticked, so it does not collide with the six bare occurrences inside
     # the geom_str/wkt/ring_points renderings.
-    assert two.count(f'`{d["sample_x"]}`') == 1
+    assert two.count(f'`{d.sample_x}`') == 1
