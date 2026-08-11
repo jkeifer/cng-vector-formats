@@ -26,9 +26,9 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from common import REPO_ROOT, ScriptError
 from location import Location
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
 LOCATIONS_DIR = REPO_ROOT / 'locations'
 
 # The three exercise sources, one per exercise and in exercise order.
@@ -154,7 +154,7 @@ def rewrite_recorded_slug(text: str, slug: str) -> str:
         flags=re.MULTILINE,
     )
     if count != 1:
-        raise SystemExit(
+        raise ScriptError(
             'error: expected exactly 1 `location = "..."` line in '
             f'pyproject.toml, matched {count}; nothing was modified.',
         )
@@ -164,7 +164,7 @@ def rewrite_recorded_slug(text: str, slug: str) -> str:
 def retarget(repo: Path, current: Location, target: Location) -> None:
     errors = verify(repo, current)
     if errors:
-        raise SystemExit(
+        raise ScriptError(
             'error: src/ does not match the recorded location '
             f'{current.slug!r}; nothing was modified.\n  ' + '\n  '.join(errors),
         )
@@ -185,14 +185,14 @@ def retarget(repo: Path, current: Location, target: Location) -> None:
     # would wedge the repo, since every later retarget starts by verifying.
     errors = verify_sites(updated, target)
     if errors:
-        raise SystemExit(
+        raise ScriptError(
             f'error: retargeting to {target.slug!r} would produce sources that '
             'do not verify; nothing was modified.\n  ' + '\n  '.join(errors),
         )
 
     # `Location.load` checks the key is present, not that the file is there.
     if not target.screenshot.is_file():
-        raise SystemExit(
+        raise ScriptError(
             f'error: {target.slug!r} names a screenshot that does not exist: '
             f'{target.screenshot}; nothing was modified.',
         )
@@ -214,7 +214,7 @@ def recorded_slug(repo: Path) -> str:
     try:
         return data['tool']['workshop']['location']
     except KeyError:
-        raise SystemExit(
+        raise ScriptError(
             'error: no [tool.workshop] location in pyproject.toml',
         ) from None
 
@@ -223,20 +223,18 @@ def load(slug: str) -> Location:
     path = LOCATIONS_DIR / f'{slug}.toml'
     if not path.is_file():
         available = ', '.join(sorted(p.stem for p in LOCATIONS_DIR.glob('*.toml')))
-        raise SystemExit(f'error: no location {slug!r}; available: {available}')
+        raise ScriptError(f'error: no location {slug!r}; available: {available}')
     return Location.load(path)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('slug', nargs='?', help='the location to switch to')
-    parser.add_argument(
-        '--check',
-        action='store_true',
-        help="verify src/ matches the recorded location; don't write anything",
-    )
-    args = parser.parse_args()
+def _run(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """Everything main() does once the arguments are parsed.
 
+    Takes the parser so `parser.error` stays where the check it reports on is:
+    the missing-slug case is only reachable after the recorded location has
+    loaded, and hoisting it into main() would change which diagnostic a user
+    with both a broken pyproject and no slug sees.
+    """
     current = load(recorded_slug(REPO_ROOT))
 
     if args.check:
@@ -258,7 +256,7 @@ def main() -> int:
         # make an absent or stale image unfixable without a detour through
         # another location.
         if not target.screenshot.is_file():
-            raise SystemExit(
+            raise ScriptError(
                 f'error: {target.slug!r} names a screenshot that does not '
                 f'exist: {target.screenshot}',
             )
@@ -274,6 +272,27 @@ def main() -> int:
         file=sys.stderr,
     )
     return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('slug', nargs='?', help='the location to switch to')
+    parser.add_argument(
+        '--check',
+        action='store_true',
+        help="verify src/ matches the recorded location; don't write anything",
+    )
+    args = parser.parse_args()
+
+    # The one place a failure below becomes an exit. `load`, `retarget` and
+    # `recorded_slug` are all usable on their own -- a caller can load two
+    # locations and compare them -- so they report a problem by raising and
+    # leave the exit policy here. `parser.error` raises SystemExit itself, by
+    # design, and passes straight through.
+    try:
+        return _run(args, parser)
+    except ScriptError as e:
+        raise SystemExit(str(e)) from e
 
 
 if __name__ == '__main__':

@@ -5,7 +5,8 @@ from pathlib import Path
 import build_workshop
 import pytest
 
-REPO = Path(__file__).resolve().parent.parent
+from common import ScriptError
+from conftest import REPO
 
 
 def test_derive_pyproject_keeps_the_runtime_project():
@@ -41,7 +42,7 @@ def test_derive_pyproject_refuses_to_emit_broken_toml():
         '[tool.ruff] is prose here, not a header\n'
         "'''\n"
     )
-    with pytest.raises(SystemExit) as excinfo:
+    with pytest.raises(ScriptError) as excinfo:
         build_workshop.derive_pyproject(hazard)
     assert 'does not parse' in str(excinfo.value)
 

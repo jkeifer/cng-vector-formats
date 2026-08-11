@@ -35,11 +35,11 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
+from common import REPO_ROOT, ScriptError
 from ipynb_scrubber.config import FileEntry, ProjectConfig, ScrubbingOptions
 from ipynb_scrubber.exceptions import ScrubberError
 from ipynb_scrubber.processor import process_notebook, write_notes_file
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = REPO_ROOT / 'src'
 PYPROJECT = REPO_ROOT / 'pyproject.toml'
 
@@ -83,7 +83,7 @@ def _render_completed(dest: Path) -> None:
     """
     src_py = SRC_DIR / f'{dest.stem}.py'
     if not src_py.exists():
-        raise SystemExit(f'error: missing source file {src_py}')
+        raise ScriptError(f'error: missing source file {src_py}')
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
@@ -106,7 +106,7 @@ def _scrub(entry: FileEntry, options: ScrubbingOptions) -> bool:
 
     if notes:
         if entry.notes_file is None:
-            raise SystemExit(
+            raise ScriptError(
                 f'error: {entry.input} has {len(notes)} cell(s) tagged '
                 f'"{options.note_tag}" but no notes-file is configured',
             )
@@ -138,7 +138,7 @@ def generate(output_dir: Path) -> list[Path]:
     try:
         config = ProjectConfig.from_file(PYPROJECT)
     except ScrubberError as e:
-        raise SystemExit(f'error: {e}') from e
+        raise ScriptError(f'error: {e}') from e
 
     written: list[Path] = []
     for configured in config.files:
@@ -161,7 +161,12 @@ def main() -> int:
         help='directory containing notebooks/ and notes/ (default: repo root)',
     )
     args = parser.parse_args()
-    generate(args.output_dir)
+    # `generate` is also one step of build_workshop's tree assembly, so it
+    # reports a failure as an exception; only this CLI turns one into an exit.
+    try:
+        generate(args.output_dir)
+    except ScriptError as e:
+        raise SystemExit(str(e)) from e
     return 0
 
 

@@ -9,6 +9,10 @@ import sys
 
 from pathlib import Path
 
+# The one copy for the tests, imported by the other modules as
+# `from conftest import REPO`. It used to be recomputed in each of them, which
+# is four chances to disagree about where the repository is. The scripts' own
+# copy lives in scripts/common.py.
 REPO = Path(__file__).resolve().parent.parent
 
 sys.path.insert(0, str(REPO / 'scripts'))

@@ -16,9 +16,24 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
 
+from common import ScriptError
+
 # The point whose condensed rendering exercise 1 quotes when it talks about how
 # many bytes a coordinate pair costs.
 SAMPLE_POINT_INDEX = 2
+
+
+class LocationError(ScriptError, ValueError):
+    """A location file that cannot be loaded, naming the file and the reason.
+
+    This module is the data model: it has no `main()` and no argparse, and a
+    caller may well want to load every location and report all the bad ones,
+    or load two to compare them. Raising `SystemExit` here made both
+    impossible. Whichever script loaded the file decides what a failure costs.
+
+    Also a `ValueError` because that is what this is -- a value that does not
+    parse -- so a caller that never heard of this module still catches it.
+    """
 
 
 def _validate_feature_collection(path: Path, text: str) -> None:
@@ -38,18 +53,18 @@ def _validate_feature_collection(path: Path, text: str) -> None:
     try:
         data = json.loads(text)
     except json.JSONDecodeError as e:
-        raise SystemExit(
+        raise LocationError(
             f'error: {path}: feature_collection is not valid JSON: {e}',
         ) from None
 
     features = data.get('features') if isinstance(data, dict) else None
     if not isinstance(features, list):
-        raise SystemExit(
+        raise LocationError(
             f'error: {path}: feature_collection has no "features" list; it must '
             'be a GeoJSON FeatureCollection as pasted from geojson.io',
         )
     if len(features) != 1:
-        raise SystemExit(
+        raise LocationError(
             f'error: {path}: feature_collection must hold exactly 1 feature, '
             f'found {len(features)}. The workshop is built around one building: '
             'exercise 1 shows the whole collection, exercises 2 and 3 use only '
@@ -58,11 +73,11 @@ def _validate_feature_collection(path: Path, text: str) -> None:
 
     geometry = features[0].get('geometry') if isinstance(features[0], dict) else None
     if not isinstance(geometry, dict):
-        raise SystemExit(f'error: {path}: the feature has no geometry')
+        raise LocationError(f'error: {path}: the feature has no geometry')
 
     kind = geometry.get('type')
     if kind != 'Polygon':
-        raise SystemExit(
+        raise LocationError(
             f'error: {path}: the geometry must be a Polygon, found {kind!r}. '
             'Trace the building as a single polygon.',
         )
@@ -70,7 +85,7 @@ def _validate_feature_collection(path: Path, text: str) -> None:
     rings = geometry.get('coordinates')
     if not isinstance(rings, list) or len(rings) != 1:
         found = len(rings) if isinstance(rings, list) else 'no'
-        raise SystemExit(
+        raise LocationError(
             f'error: {path}: the Polygon must have exactly 1 ring, found '
             f'{found}. Exercise 2 hand-encodes a single ring; holes have '
             'nowhere to go.',
@@ -127,7 +142,7 @@ class Location:
             'feature_collection',
         } - data.keys()
         if missing:
-            raise SystemExit(
+            raise LocationError(
                 f'error: {path} is missing {", ".join(sorted(missing))}',
             )
 
