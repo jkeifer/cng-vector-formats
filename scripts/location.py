@@ -16,14 +16,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
 
-from common import ScriptError
+from workshopify.errors import WorkshopifyError
 
 # The point whose condensed rendering exercise 1 quotes when it talks about how
 # many bytes a coordinate pair costs.
 SAMPLE_POINT_INDEX = 2
 
 
-class LocationError(ScriptError, ValueError):
+class LocationError(WorkshopifyError, ValueError):
     """A location file that cannot be loaded, naming the file and the reason.
 
     This module is the data model: it has no `main()` and no argparse, and a
@@ -197,14 +197,21 @@ class Location:
         return json.dumps(pair, separators=(',', ':')) + ','
 
 
-def recorded(repo: Path) -> Location:
-    """The location src/ currently contains, per pyproject.toml's record."""
-    with (repo / 'pyproject.toml').open('rb') as f:
-        data = tomllib.load(f)
-    try:
-        slug = data['tool']['workshop']['location']
-    except KeyError:
+def load_slug(locations_dir: Path, slug: str) -> Location:
+    """The location for a slug, or the error a human can act on.
+
+    `Location.load` checks the file's contents; this checks the file is
+    there -- naming the alternatives -- and that the screenshot it points
+    at exists, so a bad slug or a half-added location fails before
+    anything renders.
+    """
+    path = locations_dir / f'{slug}.toml'
+    if not path.is_file():
+        available = ', '.join(sorted(p.stem for p in locations_dir.glob('*.toml')))
+        raise LocationError(f'error: no location {slug!r}; available: {available}')
+    loc = Location.load(path)
+    if not loc.screenshot.is_file():
         raise LocationError(
-            'error: no [tool.workshop] location in pyproject.toml',
-        ) from None
-    return Location.load(repo / 'locations' / f'{slug}.toml')
+            f'error: {slug!r} names a screenshot that does not exist: {loc.screenshot}',
+        )
+    return loc

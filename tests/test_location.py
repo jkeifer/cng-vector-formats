@@ -45,9 +45,23 @@ def test_feature_collection_has_no_trailing_newline():
     assert len(auckland().feature_collection) == 910
 
 
-def test_recorded_loads_the_slug_pyproject_records():
-    loc = location.recorded(REPO)
-    assert (LOCATIONS / f'{loc.slug}.toml').is_file()
+def test_load_slug_loads_by_slug():
+    loc = location.load_slug(LOCATIONS, 'auckland')
+    assert loc.slug == 'auckland'
+
+
+def test_load_slug_names_the_alternatives():
+    with pytest.raises(location.LocationError, match='auckland'):
+        location.load_slug(LOCATIONS, 'atlantis')
+
+
+def test_load_slug_requires_the_screenshot(tmp_path):
+    src = (LOCATIONS / 'auckland.toml').read_text()
+    (tmp_path / 'ghost.toml').write_text(
+        src.replace('auckland.png', 'nowhere.png'),
+    )
+    with pytest.raises(location.LocationError, match='screenshot'):
+        location.load_slug(tmp_path, 'ghost')
 
 
 def test_every_location_parses():
