@@ -26,6 +26,26 @@ def test_derive_pyproject_drops_the_authoring_machinery():
         assert absent not in data.get('tool', {})
 
 
+def test_derive_pyproject_refuses_to_emit_broken_toml():
+    """The line scan reads any line starting with `[` as a table header.
+
+    Inside a multi-line string that is wrong, and here it truncates the kept
+    [project] table mid-string. pyproject.toml has no multi-line strings, so
+    this is the hazard arriving rather than one already present -- and it must
+    fail loudly instead of publishing a pyproject that does not parse.
+    """
+    hazard = (
+        '[project]\n'
+        'name = "x"\n'
+        "description = '''\n"
+        '[tool.ruff] is prose here, not a header\n'
+        "'''\n"
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        build_workshop.derive_pyproject(hazard)
+    assert 'does not parse' in str(excinfo.value)
+
+
 def test_write_deps_produces_a_strict_subset_of_the_repo_lock(tmp_path):
     """The workshop lock is a derivation of main's, not a fresh resolution.
 

@@ -79,3 +79,28 @@ def test_scrub_does_not_escape_non_ascii(tmp_path):
 def test_scrub_ends_with_a_trailing_newline(tmp_path):
     raw = _scrub_notebook_02(tmp_path).read_text()
     assert raw.endswith('}\n')
+
+
+def test_generate_returns_exactly_the_files_it_wrote(tmp_path):
+    """build_workshop trusts this list to tell written files from cruft.
+
+    Both directions matter. A leftover from an earlier run must not be
+    reported -- that is how a renamed exercise ships silently -- and neither
+    must a configured notes-file the notebook produced no notes for, which
+    notebook 03 is: reporting it would make the cruft check wrong the other
+    way round.
+    """
+    root = tmp_path.resolve()
+    stale = root / 'notebooks' / '99_renamed-away.ipynb'
+    stale.parent.mkdir(parents=True)
+    stale.write_text('stale')
+
+    written = gn.generate(root)
+
+    assert written, 'nothing was generated'
+    assert all(p.is_absolute() for p in written)
+    assert not (root / 'notes' / '03_reading-parquet-the-hard-way.md').exists(), (
+        'precondition: 03 writes no notes'
+    )
+    on_disk = {p for p in root.rglob('*') if p.is_file()}
+    assert set(written) == on_disk - {stale}
