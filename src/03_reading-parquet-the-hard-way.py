@@ -117,11 +117,12 @@ class BBox:
     ymax: int | float
 
     def intersects(self, other: Self) -> bool:
+        # touching counts as intersecting: a prefilter must never drop a candidate
         return (
-            other.xmin < self.xmax
-            and self.xmin < other.xmax
-            and other.ymin < self.ymax
-            and self.ymin < other.ymax
+            other.xmin <= self.xmax
+            and self.xmin <= other.xmax
+            and other.ymin <= self.ymax
+            and self.ymin <= other.ymax
         )
 
     @classmethod
@@ -440,9 +441,7 @@ print(f'{total_bytes:_}')
 # Let's also see how many rows we have in this dataset across all the files.
 
 # %%
-total_rows = 0
-for fm in fms.values():
-    total_rows += fm.row_count
+total_rows = sum(fm.row_count for fm in fms.values())
 
 print(f'{total_rows:_}')
 
@@ -813,14 +812,13 @@ pprint(geom_chunk)
 
 
 # %% [markdown]
-# Now we can read the rows from the column chunk. This time we'll combine that operation with the row filtering as well, so we just collect our target geometries. Let's also print those out and see what they look like.
+# Now we can read the rows from the column chunk, exactly as we did for the names. We parse the chunk once, then pick out our target row indices from the parsed rows. Let's also print those out and see what they look like.
 
 # %%
 async with AsyncHttpFile(file_url) as hf:
-    geom_rows = [
-        [geom async for geom in geom_chunk.parse_all_data_pages(hf)][i]
-        for i in row_indices
-    ]
+    all_geom_rows = [geom async for geom in geom_chunk.parse_all_data_pages(hf)]
+
+geom_rows = [all_geom_rows[row] for row in row_indices]
 geom_rows
 
 # %% [markdown]
