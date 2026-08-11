@@ -26,24 +26,17 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from location import (
-    Location,
-    derived,
-    format_geojson_str,
-    format_geom_pretty,
-    format_geom_str,
-    format_ring_points,
-    format_wkt,
-)
+from location import Location
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOCATIONS_DIR = REPO_ROOT / 'locations'
 
-SRC_FILES = {
-    '01': '01_is-geojson-cloud-native.py',
-    '02': '02_the-well-knowns.py',
-    '03': '03_reading-parquet-the-hard-way.py',
-}
+# The three exercise sources, one per exercise and in exercise order.
+SRC_GEOJSON = '01_is-geojson-cloud-native.py'
+SRC_WELL_KNOWNS = '02_the-well-knowns.py'
+SRC_PARQUET = '03_reading-parquet-the-hard-way.py'
+
+SRC_FILES = (SRC_GEOJSON, SRC_WELL_KNOWNS, SRC_PARQUET)
 
 # Where the active location's screenshot lands. Stable, so the notebook's
 # markdown reference never changes.
@@ -60,43 +53,42 @@ class Site:
 
 
 def sites(loc: Location) -> list[Site]:
-    d = derived(loc)
-    one, two, three = SRC_FILES['01'], SRC_FILES['02'], SRC_FILES['03']
+    d = loc.derived
     return [
-        Site('geojson_str', one, format_geojson_str(loc)),
-        Site('geojson_bytes', one, f'{d["geojson_bytes"]} bytes'),
-        Site('sample_pair', one, d['sample_pair']),
-        Site('sample_pair_bytes', one, f'{d["sample_pair_bytes"]} bytes'),
-        Site('ring_count', one, f'just {d["ring_count"]}'),
+        Site('geojson_str', SRC_GEOJSON, loc.feature_collection),
+        Site('geojson_bytes', SRC_GEOJSON, f'{d.geojson_bytes} bytes'),
+        Site('sample_pair', SRC_GEOJSON, d.sample_pair),
+        Site('sample_pair_bytes', SRC_GEOJSON, f'{d.sample_pair_bytes} bytes'),
+        Site('ring_count', SRC_GEOJSON, f'just {d.ring_count}'),
         # Carry the surrounding prose. A bare name is not safe to match on: a
         # feature collection's properties may repeat it (Sacramento's
         # buildingName is "Sheraton Grand Sacramento Hotel"), which would make
         # the name occur twice in the file once geojson_str is substituted.
-        Site('city', one, f'all buildings in {loc.city}'),
-        Site('region', one, f'Or {loc.region}'),
-        Site('macro', one, f'Or all of {loc.macro}'),
-        Site('geom_str', two, format_geom_str(loc)),
-        Site('wkt', two, format_wkt(loc)),
-        Site('ring_points', two, format_ring_points(loc)),
+        Site('city', SRC_GEOJSON, f'all buildings in {loc.city}'),
+        Site('region', SRC_GEOJSON, f'Or {loc.region}'),
+        Site('macro', SRC_GEOJSON, f'Or all of {loc.macro}'),
+        Site('geom_str', SRC_WELL_KNOWNS, loc.geom_str),
+        Site('wkt', SRC_WELL_KNOWNS, loc.wkt),
+        Site('ring_points', SRC_WELL_KNOWNS, loc.ring_points),
         # Backticked: the bare coordinate also occurs six times inside the
         # geom_str/wkt/ring_points renderings, being the ring's first and last
         # point. Only the prose mention is wrapped in backticks.
-        Site('sample_x', two, f'`{d["sample_x"]}`'),
-        Site('wkt_wkb_ratio', two, f'{d["wkt_wkb_ratio"]}x smaller'),
-        Site('geom', three, format_geom_pretty(loc)),
+        Site('sample_x', SRC_WELL_KNOWNS, f'`{d.sample_x}`'),
+        Site('wkt_wkb_ratio', SRC_WELL_KNOWNS, f'{d.wkt_wkb_ratio}x smaller'),
+        Site('geom', SRC_PARQUET, loc.geom_pretty),
         # Bare, unlike city/region/macro above, and only safe because of what
-        # exercise 3 embeds: `format_geom_pretty` renders the geometry alone,
+        # exercise 3 embeds: `Location.geom_pretty` renders the geometry alone,
         # with no `properties`, so the collection's own buildingName is not in
         # this file to collide with. Anything that put the properties back --
         # or a second prose mention of the building -- breaks that, and
         # `verify()` will say so rather than silently mis-substituting.
-        Site('building_name', three, loc.building_name),
+        Site('building_name', SRC_PARQUET, loc.building_name),
     ]
 
 
 def read_sources(repo: Path) -> dict[str, str]:
     """The current text of every source file, keyed by filename."""
-    return {name: (repo / 'src' / name).read_text() for name in SRC_FILES.values()}
+    return {name: (repo / 'src' / name).read_text() for name in SRC_FILES}
 
 
 def verify_sites(texts: dict[str, str], loc: Location) -> list[str]:

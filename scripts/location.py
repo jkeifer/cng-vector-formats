@@ -29,8 +29,9 @@ def _validate_feature_collection(path: Path, text: str) -> None:
 
       * Two features load fine and then disagree with themselves -- exercise 1
         shows the whole collection while exercises 2 and 3 use only the first.
-      * A MultiPolygon reaches `format_wkt` as a list of rings and fails there
-        with `too many values to unpack (expected 2, got 5)`, naming nothing.
+      * A MultiPolygon reaches `Location.wkt` as a list of rings and fails
+        there with `too many values to unpack (expected 2, got 5)`, naming
+        nothing.
 
     Checked at load time so the message can name the file that is wrong.
     """
@@ -84,6 +85,22 @@ def utf8_len(text: str) -> int:
     made the two differ by 12.
     """
     return len(text.encode())
+
+
+@dataclass(frozen=True, slots=True)
+class Derived:
+    """The facts the prose asserts, computed rather than written down.
+
+    Every field is a string: these are substituted into source text, and
+    formatting them here keeps rounding in one place.
+    """
+
+    geojson_bytes: str
+    sample_pair: str
+    sample_pair_bytes: str
+    ring_count: str
+    sample_x: str
+    wkt_wkb_ratio: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,52 +160,46 @@ class Location:
     def ring(self) -> list[list[float]]:
         return self.geometry['coordinates'][0]
 
+    @property
+    def geom_str(self) -> str:
+        """Exercise 2: the geometry, with each coordinate pair on one line."""
+        coords = ',\n'.join(f'        [{x}, {y}]' for x, y in self.ring)
+        return (
+            '{\n    "coordinates": [[\n'
+            + coords
+            + '\n    ]],\n    "type": "Polygon"\n}'
+        )
 
-def format_geojson_str(loc: Location) -> str:
-    """Exercise 1: the FeatureCollection, exactly as the reader pasted it."""
-    return loc.feature_collection
+    @property
+    def wkt(self) -> str:
+        """Exercise 2: the WKT the reader is asked to write by hand."""
+        return 'POLYGON((' + ', '.join(f'{x} {y}' for x, y in self.ring) + '))'
 
+    @property
+    def ring_points(self) -> str:
+        """Exercise 2: the body of the ring_points list, without its brackets."""
+        return ',\n'.join(f'    ({x}, {y})' for x, y in self.ring) + ','
 
-def format_geom_str(loc: Location) -> str:
-    """Exercise 2: the geometry, with each coordinate pair on one line."""
-    coords = ',\n'.join(f'        [{x}, {y}]' for x, y in loc.ring)
-    return '{\n    "coordinates": [[\n' + coords + '\n    ]],\n    "type": "Polygon"\n}'
+    @property
+    def geom_pretty(self) -> str:
+        """Exercise 3: the geometry alone, pretty-printed."""
+        return json.dumps(self.geometry, indent=2)
 
+    @property
+    def derived(self) -> Derived:
+        """The facts the prose asserts, computed rather than written down."""
+        ring = self.ring
+        pair = json.dumps(ring[SAMPLE_POINT_INDEX], separators=(',', ':')) + ','
+        # 1 byte endianness + 4 type + 4 ring count + 4 point count + 16 per point.
+        wkb_size = 13 + 16 * len(ring)
 
-def format_wkt(loc: Location) -> str:
-    """Exercise 2: the WKT the reader is asked to write by hand."""
-    return 'POLYGON((' + ', '.join(f'{x} {y}' for x, y in loc.ring) + '))'
-
-
-def format_ring_points(loc: Location) -> str:
-    """Exercise 2: the body of the ring_points list, without its brackets."""
-    return ',\n'.join(f'    ({x}, {y})' for x, y in loc.ring) + ','
-
-
-def format_geom_pretty(loc: Location) -> str:
-    """Exercise 3: the geometry alone, pretty-printed."""
-    return json.dumps(loc.geometry, indent=2)
-
-
-def derived(loc: Location) -> dict[str, str]:
-    """The facts the prose asserts, computed rather than written down.
-
-    All returned as strings: these are substituted into source text, and
-    formatting them here keeps rounding in one place.
-    """
-    ring = loc.ring
-    pair = json.dumps(ring[SAMPLE_POINT_INDEX], separators=(',', ':')) + ','
-    wkt = format_wkt(loc)
-    # 1 byte endianness + 4 type + 4 ring count + 4 point count + 16 per point.
-    wkb_size = 13 + 16 * len(ring)
-
-    # Every size below is a byte count in the prose, so measure bytes. The
-    # coordinate renderings happen to be ASCII, but the rule is the same one.
-    return {
-        'geojson_bytes': str(utf8_len(loc.feature_collection)),
-        'sample_pair': pair,
-        'sample_pair_bytes': str(utf8_len(pair)),
-        'ring_count': str(len(ring)),
-        'sample_x': repr(ring[0][0]),
-        'wkt_wkb_ratio': f'{utf8_len(wkt) / wkb_size:.1f}',
-    }
+        # Every size below is a byte count in the prose, so measure bytes. The
+        # coordinate renderings happen to be ASCII, but the rule is the same one.
+        return Derived(
+            geojson_bytes=str(utf8_len(self.feature_collection)),
+            sample_pair=pair,
+            sample_pair_bytes=str(utf8_len(pair)),
+            ring_count=str(len(ring)),
+            sample_x=repr(ring[0][0]),
+            wkt_wkb_ratio=f'{utf8_len(self.wkt) / wkb_size:.1f}',
+        )
