@@ -18,6 +18,9 @@ import tomllib
 
 from pathlib import Path
 
+import generate_notebooks
+import worktree
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Tables that participants need. Everything else in main's pyproject is
@@ -27,7 +30,17 @@ KEEP_TABLES = ('project', 'tool.uv')
 
 
 def derive_pyproject(text: str) -> str:
-    """main's pyproject with the authoring machinery stripped out."""
+    """main's pyproject with the authoring machinery stripped out.
+
+    Line-based rather than a tomllib/tomli-w round trip, which would drop the
+    comments that make the published pyproject readable. The cost is a
+    dependency on an invariant TOML does not guarantee: no line inside a
+    multi-line ('''...''') string may begin with `[`, or it reads here as a
+    table header and either truncates a kept table mid-string or resumes
+    keeping in the middle of a dropped one. pyproject.toml has no multi-line
+    strings today -- but locations/*.toml uses them heavily -- so rather than
+    leave that holding by luck, the derived text is parsed back and checked.
+    """
     kept: list[str] = []
     keeping = True
     for line in text.splitlines(keepends=True):
@@ -39,7 +52,16 @@ def derive_pyproject(text: str) -> str:
             )
         if keeping:
             kept.append(line)
-    return ''.join(kept)
+    derived = ''.join(kept)
+
+    allowed = {name.split('.', 1)[0] for name in KEEP_TABLES}
+    try:
+        leaked = sorted(set(tomllib.loads(derived)) - allowed)
+    except tomllib.TOMLDecodeError as e:
+        raise SystemExit(f'error: derived pyproject.toml does not parse: {e}') from e
+    if leaked:
+        raise SystemExit(f'error: derived pyproject.toml kept extra tables: {leaked}')
+    return derived
 
 
 def write_deps(repo: Path, staging: Path) -> None:
@@ -101,42 +123,11 @@ def _copy(source: Path, dest: Path) -> list[Path]:
     return [dest]
 
 
-def _generated(staging: Path) -> list[Path]:
-    """The notebooks and notes the generation step wrote, per the config.
-
-    Read from the scrubber config -- the authority on what gets generated --
-    rather than by globbing staging/notebooks and staging/notes, for the
-    same reason as _copy: a reused worktree's leftovers must not be counted
-    as written. A renamed exercise is exactly the case that matters, and
-    renamed exercises live in notebooks/.
-    """
-    import generate_notebooks
-
-    from ipynb_scrubber.config import ProjectConfig
-
-    config = ProjectConfig.from_file(generate_notebooks.PYPROJECT)
-    written: list[Path] = []
-    for configured in config.files:
-        entry = generate_notebooks._rebase(configured, staging)
-        # The completed and exercise notebooks are written unconditionally.
-        written += [entry.input, entry.output]
-        # The notes file is written only when the notebook has note-tagged
-        # cells. Notebook 03 declares a notes-file and produces none, so
-        # trusting the config here would report a file that was never
-        # written -- the same error as globbing, in reverse.
-        if entry.notes_file is not None and entry.notes_file.is_file():
-            written.append(entry.notes_file)
-    return written
-
-
 def build(repo: Path, staging: Path) -> set[Path]:
     """Assemble the complete published tree. Returns paths relative to staging."""
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import generate_notebooks
-
     staging.mkdir(parents=True, exist_ok=True)
-    # generate_notebooks resolves its output dir, so the paths _generated
-    # derives are resolved; match that here or relative_to below fails.
+    # generate_notebooks resolves its output dir, so the paths it reports back
+    # are resolved; match that here or relative_to below fails.
     staging = staging.resolve()
     written: list[Path] = []
 
@@ -150,11 +141,7 @@ def build(repo: Path, staging: Path) -> set[Path]:
     for source in sorted(p for p in static_dir.rglob('*') if p.is_file()):
         written += _copy(source, staging / source.relative_to(static_dir))
 
-    generate_notebooks.generate(staging)
-    # Bookkeeping stays a separate step after generate() rather than being
-    # folded into it: _generated checks which notes files actually landed on
-    # disk, which only has an answer once generation has run.
-    written += _generated(staging)
+    written += generate_notebooks.generate(staging)
 
     write_deps(repo, staging)
     written += [staging / 'pyproject.toml', staging / 'uv.lock']
@@ -286,9 +273,6 @@ def main() -> int:
         help='proceed even though the worktree has uncommitted changes',
     )
     args = parser.parse_args()
-
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import worktree
 
     target = worktree.prepare_worktree('workshop', REPO_ROOT / 'workshop', orphan=False)
 
