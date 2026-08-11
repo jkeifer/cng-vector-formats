@@ -24,7 +24,7 @@ jobs:
       - name: Run tests
         run: uv run pytest
       - name: Check src/ matches the recorded location
-        run: uv run scripts/set_location.py --check
+        run: uv run workshopify check
 
   notebooks:
     runs-on: ubuntu-latest
@@ -51,7 +51,7 @@ jobs:
       - name: Install dependencies
         run: uv sync
       - name: Generate notebooks
-        run: uv run scripts/generate_notebooks.py
+        run: uv run workshopify generate
       - name: Execute notebook 01
         run: uv run jupyter execute notebooks/completed/01_is-geojson-cloud-native.ipynb
       - name: Execute notebook 02

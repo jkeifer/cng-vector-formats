@@ -29,7 +29,7 @@ clean and diffable.
 
 | Branch     | Contents                                                         | Audience     |
 | ---------- | ---------------------------------------------------------------- | ------------ |
-| `main`     | Source: `src/*.py`, `scripts/`, config, this README               | Contributors |
+| `main`     | Source: `src/*.py`, the location model, config, this README       | Contributors |
 | `workshop` | Runnable notebooks + participant README, notes, run env           | Participants |
 
 Notebooks are **never committed on `main`** — they are generated on demand into
@@ -79,11 +79,11 @@ TOML file per location, holding the FeatureCollection exactly as pasted from
 geojson.io plus the names the prose uses. Everything else — the WKT, the
 ring points, the byte counts, the size ratio — is derived.
 
-    uv run scripts/set_location.py hiroshima
+    uv run workshopify set location hiroshima
 
 That rewrites `src/*.py`, copies the location's screenshot to
 `notebooks/assets/geojson_io.png`, and records the new slug in
-`[tool.workshop]`. It verifies every site it is about to change is present
+`[tool.workshopify.params]`. It verifies every site it is about to change is present
 exactly once first, so a hand-edited source aborts the run rather than being
 half-rewritten. `--check` runs that verification alone, and runs in CI.
 
@@ -125,16 +125,16 @@ The `workshop` branch is a pure build artifact — every file on it is
 reproducible from `main`, so a publish replaces the tree rather than
 merging into it.
 
-    uv run scripts/build_workshop.py
+    uv run workshopify build
 
 That assembles the complete published tree into the `workshop` worktree:
-the files named by `[tool.workshop-build] include`, the `static/` overlay,
+the files named by `[tool.workshopify.build] include`, the `static/` overlay,
 the generated notebooks and notes, `notebooks/assets/`, and a
 `pyproject.toml`/`uv.lock` derived from main's. Nothing is committed or
 pushed automatically — review and publish yourself:
 
 ```commandline
-uv run scripts/build_workshop.py
+uv run workshopify build
 git -C workshop status                     # review
 git -C workshop add -A
 PREK_ALLOW_NO_CONFIG=1 git -C workshop commit -m "Update notebooks"
@@ -152,7 +152,7 @@ variable lets the hook no-op on its own terms, which is preferable to
 `--no-verify` (that would disable hook execution wholesale). Do not
 "fix" this by adding a pre-commit config to the `workshop` branch: the
 build would drop it on the next publish anyway, since the branch only
-ever contains what `build_workshop.py` writes.
+ever contains what `workshopify build` writes.
 
 The build only writes. If a file was renamed or dropped, its old copy
 stays on the branch — and since it is unchanged, `git status` there says
@@ -192,7 +192,7 @@ local equivalents:
 
 ```commandline
 uv run prek run --all-files
-uv run scripts/generate_notebooks.py
+uv run workshopify generate
 uv run jupyter execute notebooks/completed/NN_<name>.ipynb   # for each of 01, 02, 03
 ```
 

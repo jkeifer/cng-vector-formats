@@ -1,14 +1,22 @@
-"""The namespace the src/ template generators run in (see [tool.render]).
+"""The namespace the src/ template generators run in (see [tool.workshopify]).
 
 Everything at module level here is visible to the cog generators embedded in
-src/. Rendering always targets the *recorded* location: set_location.py
-records the new slug first, then re-renders, so this needs no arguments.
+src/. workshopify executes this module with `params` (the recorded
+[tool.workshopify.params]) and `__file__` pre-bound, and with this directory
+on sys.path -- which is what makes the sibling `location` import work.
 """
 
-from common import REPO_ROOT
+from pathlib import Path
 
 # "Unused" imports here are part of the generator namespace: the byte-count
 # generators in src/ call utf8_len even though nothing in this file does.
-from location import recorded, utf8_len  # noqa: F401
+from location import load_slug, utf8_len  # noqa: F401
 
-loc = recorded(REPO_ROOT)
+loc = load_slug(
+    Path(__file__).resolve().parent.parent / 'locations',
+    params['location'],
+)
+
+# The screenshot exercise 1 embeds, derived from the recorded location the
+# same way the rendered values are: placed on render/set, verified by check.
+ASSETS = {'notebooks/assets/geojson_io.png': loc.screenshot}

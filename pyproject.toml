@@ -29,7 +29,18 @@ members = ["workshopify"]
 [tool.uv.sources]
 workshopify = { workspace = true }
 
-[tool.workshop-build]
+[tool.workshopify]
+# The context module: its module-level names are the namespace the cog
+# generators in src/ run in, and its ASSETS map declares binary files
+# derived from the recorded params (placed on render/set, verified by check).
+context = "scripts/workshop_context.py"
+
+[tool.workshopify.render]
+# The sources carry cog generators in comments; their location-dependent
+# values are rendered inline.
+files = ["src/*.py"]
+
+[tool.workshopify.build]
 # Repo files that ship to participants unchanged. Files that differ from
 # main's live in static/ instead; nothing appears in both places.
 include = [
@@ -38,18 +49,14 @@ include = [
     ".devcontainer",
     "notebooks/assets",
 ]
+# The workspace wiring must not reach participants, who have no
+# workshopify checkout to point at.
+drop-keys = ["tool.uv.workspace", "tool.uv.sources"]
 
-[tool.workshop]
+[tool.workshopify.params]
 # The location the src/ files currently contain. Change it with
-# `uv run scripts/set_location.py <slug>`, never by hand.
+# `uv run workshopify set location <slug>`, never by hand.
 location = "hiroshima"
-
-[tool.render]
-# The sources carry cog generators in comments (scripts/render.py). Their
-# location-dependent values are rendered inline; the generators run in the
-# namespace of the context module.
-files = ["src/*.py"]
-context = "scripts/workshop_context.py"
 
 [dependency-groups]
 dev = [
@@ -65,7 +72,7 @@ dev = [
 
 [tool.ruff]
 # `display` is an IPython builtin available in every notebook cell.
-builtins = ["display"]
+builtins = ["display", "params"]
 
 [tool.ruff.format]
 quote-style = "single"
@@ -99,7 +106,7 @@ testpaths = ["tests", "workshopify/tests"]
 # Workflow:
 #   1. Edit src/NN_<name>.py (or the notebook in Jupyter).
 #   2. `uv run jupytext --sync src/*.py` to sync the pair.
-#   3. `uv run scripts/generate_notebooks.py` to regenerate the exercise
+#   3. `uv run workshopify generate` to regenerate the exercise
 #      notebooks + notes from the completed notebooks.
 #
 # Only the completed notebooks (notebooks/completed/) are paired; the
