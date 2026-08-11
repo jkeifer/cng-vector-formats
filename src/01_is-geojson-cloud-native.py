@@ -60,6 +60,7 @@ import json
 
 # %%
 #| scrub-note: cell0 | geojson_str = """PASTE YOUR GEOJSON FEATURE COLLECTION HERE"""
+# <!--[[[cog cog.outl(f'geojson_str = """{loc.feature_collection}"""') ]]]-->
 geojson_str = """{
   "type": "FeatureCollection",
   "features": [
@@ -99,6 +100,7 @@ geojson_str = """{
     }
   ]
 }"""
+# <!--[[[end]]]-->
 
 # %%
 #| scrub-note: cell1
@@ -109,11 +111,26 @@ geojson
 # <!-- scrub-omit -->
 # ### A few things to notice
 #
-# This GeoJSON is not large. As a string it is only 712 bytes long. Cloud-native concerns don't even begin to come into play with this example, it's just not big enough for us to have to worry about read inefficiencies.
+# This GeoJSON is not large. As a string it is only
+# <!--[[[cog md(utf8_len(loc.feature_collection)) ]]]-->
+# 712
+# <!--[[[end]]]-->
+# bytes long. Cloud-native concerns don't even begin to come into play with this example, it's just not big enough for us to have to worry about read inefficiencies.
 #
-# But notice the length of each point: a point coordinate pair like `[132.469393,34.3947249],` is 24 bytes, and that's removing all whitespace from consideration. We traced this building with just 5 points. Imagine we placed a point every 5 meters along the facade — how many more points would we have had here? A point every 1 meter? Depending on our building's shape and how we trace it, we could end up with many more points…
+# But notice the length of each point: a point coordinate pair like
+# <!--[[[cog md(f"`{loc.sample_pair}` is {utf8_len(loc.sample_pair)}") ]]]-->
+# `[132.469393,34.3947249],` is 24
+# <!--[[[end]]]-->
+# bytes, and that's removing all whitespace from consideration. We traced this building with just
+# <!--[[[cog md(len(loc.ring)) ]]]-->
+# 5
+# <!--[[[end]]]-->
+# points. Imagine we placed a point every 5 meters along the facade — how many more points would we have had here? A point every 1 meter? Depending on our building's shape and how we trace it, we could end up with many more points…
 #
-# Imagine then we extend this feature collection so it contains similar geometries for all buildings in Hiroshima. Or Honshu. Or all of Japan.
+# Imagine then we extend this feature collection so it contains similar geometries for all buildings in
+# <!--[[[cog md(f"{loc.city}. Or {loc.region}. Or all of {loc.macro}.") ]]]-->
+# Hiroshima. Or Honshu. Or all of Japan.
+# <!--[[[end]]]-->
 #
 # We start to see a potential problem...
 

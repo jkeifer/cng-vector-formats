@@ -38,8 +38,16 @@ include = [
 # `uv run scripts/set_location.py <slug>`, never by hand.
 location = "hiroshima"
 
+[tool.render]
+# The sources carry cog generators in comments (scripts/render.py). Their
+# location-dependent values are rendered inline; the generators run in the
+# namespace of the context module.
+files = ["src/*.py"]
+context = "scripts/workshop_context.py"
+
 [dependency-groups]
 dev = [
+    "cogapp>=3.5.1",
     "ipynb-scrubber>=0.4.1",
     "jupytext>=1.19.4",
     "nbclient>=0.11.0",

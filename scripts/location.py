@@ -103,22 +103,6 @@ def utf8_len(text: str) -> int:
 
 
 @dataclass(frozen=True, slots=True)
-class Derived:
-    """The facts the prose asserts, computed rather than written down.
-
-    Every field is a string: these are substituted into source text, and
-    formatting them here keeps rounding in one place.
-    """
-
-    geojson_bytes: str
-    sample_pair: str
-    sample_pair_bytes: str
-    ring_count: str
-    sample_x: str
-    wkt_wkb_ratio: str
-
-
-@dataclass(frozen=True, slots=True)
 class Location:
     slug: str
     building_name: str
@@ -201,20 +185,26 @@ class Location:
         return json.dumps(self.geometry, indent=2)
 
     @property
-    def derived(self) -> Derived:
-        """The facts the prose asserts, computed rather than written down."""
-        ring = self.ring
-        pair = json.dumps(ring[SAMPLE_POINT_INDEX], separators=(',', ':')) + ','
-        # 1 byte endianness + 4 type + 4 ring count + 4 point count + 16 per point.
-        wkb_size = 13 + 16 * len(ring)
+    def sample_pair(self) -> str:
+        """The condensed pair exercise 1 quotes when it prices a coordinate.
 
-        # Every size below is a byte count in the prose, so measure bytes. The
-        # coordinate renderings happen to be ASCII, but the rule is the same one.
-        return Derived(
-            geojson_bytes=str(utf8_len(self.feature_collection)),
-            sample_pair=pair,
-            sample_pair_bytes=str(utf8_len(pair)),
-            ring_count=str(len(ring)),
-            sample_x=repr(ring[0][0]),
-            wkt_wkb_ratio=f'{utf8_len(self.wkt) / wkb_size:.1f}',
-        )
+        Every other fact the prose asserts is derived inline by the template
+        generator that states it, next to the claim it backs. This one is a
+        property only because its generator uses it twice -- once to show the
+        pair, once to count its bytes -- and would otherwise derive it twice.
+        """
+        pair = self.ring[SAMPLE_POINT_INDEX]
+        return json.dumps(pair, separators=(',', ':')) + ','
+
+
+def recorded(repo: Path) -> Location:
+    """The location src/ currently contains, per pyproject.toml's record."""
+    with (repo / 'pyproject.toml').open('rb') as f:
+        data = tomllib.load(f)
+    try:
+        slug = data['tool']['workshop']['location']
+    except KeyError:
+        raise LocationError(
+            'error: no [tool.workshop] location in pyproject.toml',
+        ) from None
+    return Location.load(repo / 'locations' / f'{slug}.toml')
