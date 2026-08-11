@@ -1,0 +1,18 @@
+[project]
+name = "workshopify"
+version = "0.1.0"
+description = "Skeleton and scaffolding for template-rendered, notebook-based workshop repositories"
+requires-python = ">=3.12"
+dependencies = [
+    "cogapp>=3.5.1",
+    "ipynb-scrubber>=0.4.1",
+    "jupytext>=1.19.4",
+    "tomlkit>=0.13.2",
+]
+
+[project.scripts]
+workshopify = "workshopify.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.6,<0.12"]
+build-backend = "uv_build"

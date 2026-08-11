@@ -6,7 +6,8 @@ import build_workshop
 import pytest
 
 from common import ScriptError
-from conftest import REPO
+
+from tests.conftest import REPO
 
 
 def test_derive_pyproject_keeps_the_runtime_project():
@@ -15,7 +16,7 @@ def test_derive_pyproject_keeps_the_runtime_project():
     assert data['project']['name'] == 'cng-vector-formats'
     assert 'por-que' in ' '.join(data['project']['dependencies'])
     assert data['project']['urls']
-    assert data['tool']['uv'] == {'package': False}
+    assert data['tool']['uv']['package'] is False
 
 
 def test_derive_pyproject_drops_the_authoring_machinery():

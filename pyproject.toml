@@ -23,6 +23,12 @@ Repository = 'https://github.com/jkeifer/cng-vector-formats'
 [tool.uv]
 package = false
 
+[tool.uv.workspace]
+members = ["workshopify"]
+
+[tool.uv.sources]
+workshopify = { workspace = true }
+
 [tool.workshop-build]
 # Repo files that ship to participants unchanged. Files that differ from
 # main's live in static/ instead; nothing appears in both places.
@@ -54,6 +60,7 @@ dev = [
     "prek>=0.4.8",
     "pytest>=8.4.2",
     "ruff>=0.16.2",
+    "workshopify",
 ]
 
 [tool.ruff]
@@ -79,7 +86,7 @@ lines-between-types = 1
 combine-as-imports = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "workshopify/tests"]
 
 [tool.jupytext]
 # The py:percent files in src/ are the source of truth, named for their
