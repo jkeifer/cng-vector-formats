@@ -68,9 +68,13 @@ From each `src/` file we generate:
 Both generation steps are configured in `pyproject.toml`, by
 `[tool.ipynb-scrubber]` (input/output paths, tags) and `[tool.jupytext]` (the
 `src/` ↔ `notebooks/completed/` pairing). Static assets referenced by the
-notebooks live in `notebooks/assets/` (tracked on `main`). They are inputs, not
-generated output, so the publish build (below) copies them into the workshop
-worktree alongside the generated notebooks.
+notebooks live in `notebooks/assets/` (tracked on `main`). They are derived from
+the recorded location the same way the rendered values are: the context module's
+`ASSETS` map names each one and its source, `render`/`set` place them, and
+`check` verifies them. Because an asset already publishes itself,
+`notebooks/assets/` must *not* also appear in `[tool.workshopify.build] include`
+— one published path may have only one source, and the build rejects a
+duplicate outright.
 
 ### Changing the workshop location
 
@@ -85,7 +89,8 @@ That rewrites `src/*.py`, copies the location's screenshot to
 `notebooks/assets/geojson_io.png`, and records the new slug in
 `[tool.workshopify.params]`. It verifies every site it is about to change is present
 exactly once first, so a hand-edited source aborts the run rather than being
-half-rewritten. `--check` runs that verification alone, and runs in CI.
+half-rewritten. `uv run workshopify check` runs that verification alone, reporting
+stale rendered values or assets, and runs in CI.
 
 Afterwards, regenerate and **execute notebook 03**: the script cannot know
 whether the new building is actually found in Overture, or how many row groups
@@ -129,8 +134,9 @@ merging into it.
 
 That assembles the complete published tree into the `workshop` worktree:
 the files named by `[tool.workshopify.build] include`, the `static/` overlay,
-the generated notebooks and notes, `notebooks/assets/`, and a
-`pyproject.toml`/`uv.lock` derived from main's. Nothing is committed or
+the generated notebooks and notes, the declared assets, and a
+`pyproject.toml`/`uv.lock` derived from main's (dev tooling and the
+`[tool.workshopify]` tables stripped). Nothing is committed or
 pushed automatically — review and publish yourself:
 
 ```commandline
@@ -176,6 +182,12 @@ uv sync
 
 installs everything, including the dev tooling (Jupytext, ipynb-scrubber). Run
 Jupyter with `uv run jupyter lab`.
+
+The `workshopify` commands used throughout this guide come from
+[workshopify](https://github.com/jkeifer/workshopify), a separate package
+released to PyPI and pinned in the dev dependency group. It holds all the
+generic build machinery; what is specific to this workshop lives in the
+`[tool.workshopify]` tables of `pyproject.toml` and in `scripts/`.
 
 After syncing, install the git hooks with `uv run prek install`. The hooks run
 ruff lint and format, with the tools coming from the dev dependency group; run

@@ -109,7 +109,9 @@ from shapely import from_wkb as shapely_from_wkb, wkt as shapely_wkt
 # Now, let's start by dropping our geometry from our feature from exercise 1 here so we have a GeoJSON-format geometry to convert to WKT.
 
 # %%
-#| scrub-note: cell0 | geom_str = """PASTE YOUR GEOJSON GEOMETRY HERE"""
+#| scrub-note:
+#|   id: cell0
+#|   text: 'geom_str = """PASTE YOUR GEOJSON GEOMETRY HERE"""'
 # <!--[[[cog cog.outl(f'geom_str = """{loc.geom_str}"""') ]]]-->
 geom_str = """{
     "coordinates": [[
@@ -127,7 +129,9 @@ geom_str = """{
 # Now, let's write this Polygon geometry out in WKT format by hand.
 
 # %%
-#| scrub-note: cell1 | wkt = 'WRITE YOUR WKT POLYGON HERE'
+#| scrub-note:
+#|   id: cell1
+#|   text: "wkt = 'WRITE YOUR WKT POLYGON HERE'"
 # <!--[[[cog cog.outl(f"wkt = {loc.wkt!r}") ]]]-->
 wkt = 'POLYGON((132.4693292 34.3952499, 132.4695581 34.3951943, 132.469393 34.3947249, 132.4691665 34.3947776, 132.4693292 34.3952499))'
 # <!--[[[end]]]-->
@@ -155,7 +159,9 @@ shapely_wkt.loads(wkt)
 # * `ring_points`: a list of two-tuples with our (x, y) coordinate values.
 
 # %%
-#| scrub-note: cell2 | # DEFINE THE ABOVE VARIABLES HERE FOR YOUR GEOMETRY
+#| scrub-note:
+#|   id: cell2
+#|   text: '# DEFINE THE ABOVE VARIABLES HERE FOR YOUR GEOMETRY'
 endianness = 1
 geom_type = 3
 ring_count = 1
@@ -207,7 +213,9 @@ struct.unpack('>bbbbHHHHI', bytes_)
 # * Each coordinate value in `ring_points` is a double float, or `d`. We can write `d` repeated for the number of values we need to encode, like `dddd` if we had four coordinate values across two points (two coordinate pairs). We could also use the shorter equivalent of specifying the number of values then `d`, like `4d` in the previous example.
 
 # %%
-#| scrub-note: cell3 | wkb = struct.pack('FILL IN THE FORMAT CODE', endianness, geom_type, ring_count, len(ring_points), *(c for pair in ring_points for c in pair))
+#| scrub-note:
+#|   id: cell3
+#|   text: "wkb = struct.pack('FILL IN THE FORMAT CODE', endianness, geom_type, ring_count, len(ring_points), *(c for pair in ring_points for c in pair))"
 wkb = struct.pack(
     f'{"<" if endianness else ">"}BIII{len(ring_points) * 2}d',
     endianness,

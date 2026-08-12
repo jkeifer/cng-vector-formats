@@ -23,13 +23,6 @@ Repository = 'https://github.com/jkeifer/cng-vector-formats'
 [tool.uv]
 package = false
 
-[tool.uv.sources]
-# A path source rather than a workspace member: workshopify is its own
-# repository and owns its own uv.lock, and uv does not permit a workspace
-# member to do that (nested workspaces are rejected outright). The install is
-# still editable, so edits under workshopify/src take effect immediately.
-workshopify = { path = "workshopify", editable = true }
-
 [tool.workshopify]
 # The context module: its module-level names are the namespace the cog
 # generators in src/ run in, and its ASSETS map declares binary files
@@ -48,11 +41,10 @@ include = [
     "Dockerfile",
     "compose.yml",
     ".devcontainer",
-    "notebooks/assets",
 ]
-# The workshopify source must not reach participants, who have no
-# workshopify checkout to point at.
-drop-keys = ["tool.uv.sources"]
+# notebooks/assets is deliberately absent: its one file is the screenshot the
+# context's ASSETS map owns, and an asset already publishes itself. Listing it
+# here too would give one published path two sources, which build rejects.
 
 [tool.workshopify.params]
 # The location the src/ files currently contain. Change it with
@@ -62,13 +54,13 @@ location = "hiroshima"
 [dependency-groups]
 dev = [
     "cogapp>=3.5.1",
-    "ipynb-scrubber>=0.4.1",
+    "ipynb-scrubber>=0.5.0",
     "jupytext>=1.19.4",
     "nbclient>=0.11.0",
     "prek>=0.4.8",
     "pytest>=8.4.2",
     "ruff>=0.16.2",
-    "workshopify",
+    "workshopify>=0.2.0",
 ]
 
 [tool.ruff]
