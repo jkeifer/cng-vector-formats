@@ -59,7 +59,9 @@ import json
 # ![geojson.io example](assets/geojson_io.png)
 
 # %%
-#| scrub-note: cell0 | geojson_str = """PASTE YOUR GEOJSON FEATURE COLLECTION HERE"""
+#| scrub-note:
+#|   id: cell0
+#|   text: 'geojson_str = """PASTE YOUR GEOJSON FEATURE COLLECTION HERE"""'
 # <!--[[[cog cog.outl(f'geojson_str = """{loc.feature_collection}"""') ]]]-->
 geojson_str = """{
   "type": "FeatureCollection",
@@ -108,7 +110,7 @@ geojson = json.loads(geojson_str)
 geojson
 
 # %% [markdown]
-# <!-- scrub-omit -->
+# <!-- scrub-omit: -->
 # ### A few things to notice
 #
 # This GeoJSON is not large. As a string it is only

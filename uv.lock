@@ -397,13 +397,13 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "cogapp", specifier = ">=3.5.1" },
-    { name = "ipynb-scrubber", specifier = ">=0.4.1" },
+    { name = "ipynb-scrubber", specifier = ">=0.5.0" },
     { name = "jupytext", specifier = ">=1.19.4" },
     { name = "nbclient", specifier = ">=0.11.0" },
     { name = "prek", specifier = ">=0.4.8" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "ruff", specifier = ">=0.16.2" },
-    { name = "workshopify", editable = "workshopify" },
+    { name = "workshopify", specifier = ">=0.2.0" },
 ]
 
 [[package]]
@@ -670,11 +670,14 @@ wheels = [
 
 [[package]]
 name = "ipynb-scrubber"
-version = "0.4.1"
+version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/03/1d/29aac8d5c3397567ec74e41bfe57782ddf526e672b758d6f22e01c252358/ipynb_scrubber-0.4.1.tar.gz", hash = "sha256:ddf3b485b8c4e9fb05b9a931f8a515a9117955c30097bee71ad63c1abc265a5a", size = 42618, upload-time = "2025-10-26T17:03:14.013Z" }
+dependencies = [
+    { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1a/28/5beeb77a2fc0fd152e240895d48dd787c0e5fb4d1bb623f0036570312a1b/ipynb_scrubber-0.5.0.tar.gz", hash = "sha256:1ceac3645375b0f5a6d63dda170980feedb2be066db54b4d7c2641c8ad381436", size = 150090, upload-time = "2026-08-12T04:57:14.483Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f0/dd/aae450b82cdd674279f972a8e6e3e0dffb5737f940900adc9287766367bb/ipynb_scrubber-0.4.1-py3-none-any.whl", hash = "sha256:7e94f1c40de96504b62681e10353565adb657984fa96f5b7aae0e59610d157d4", size = 18701, upload-time = "2025-10-26T17:03:12.613Z" },
+    { url = "https://files.pythonhosted.org/packages/37/36/a309d15dc7d86359b09ebdfe232093b5132198c7a5c879ff45f6417ee0ec/ipynb_scrubber-0.5.0-py3-none-any.whl", hash = "sha256:d5fe5f0bd469e34ba9c69b2ef339de0c4967dfc6e5c75946c3490c256600e4c9", size = 56134, upload-time = "2026-08-12T04:57:13.172Z" },
 ]
 
 [[package]]
@@ -2029,30 +2032,17 @@ wheels = [
 
 [[package]]
 name = "workshopify"
-source = { editable = "workshopify" }
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cogapp" },
     { name = "ipynb-scrubber" },
     { name = "jupytext" },
     { name = "tomlkit" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "cogapp", specifier = ">=3.5.1" },
-    { name = "ipynb-scrubber", specifier = ">=0.4.1" },
-    { name = "jupytext", specifier = ">=1.19.4" },
-    { name = "tomlkit", specifier = ">=0.13.2" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pre-commit-hooks", specifier = ">=6.0.0" },
-    { name = "prek", specifier = ">=0.4.8" },
-    { name = "pytest", specifier = ">=8.4.2" },
-    { name = "pytest-cov", specifier = ">=7.0.0" },
-    { name = "ruff", specifier = ">=0.16.2" },
-    { name = "ty", specifier = ">=0.0.70" },
+sdist = { url = "https://files.pythonhosted.org/packages/93/60/3ca3a9ff40a56f4842ab629459cc6523dbe9ae167ac06b72d14994769a0d/workshopify-0.2.0.tar.gz", hash = "sha256:ad1fe205da7c3625a5b6cf8808052ea33bafb07d728fa33fdca0ab087b343922", size = 94193, upload-time = "2026-08-12T19:42:59.729Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9d/6e/13597db199fd0976487ba21daaa21af390cd441c8507d52cb7b53baca903/workshopify-0.2.0-py3-none-any.whl", hash = "sha256:b46a211c251c136f77ab730ae0d32e74a08c4488b7571837ac1ca4732fff4749", size = 43535, upload-time = "2026-08-12T19:42:58.483Z" },
 ]
 
 [[package]]
