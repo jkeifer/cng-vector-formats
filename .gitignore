@@ -1,9 +1,10 @@
-# Generated notebooks + notes. The source of truth is src/*.py; the notebooks
-# are generated on demand (run `uv run workshopify generate`) and published to
-# the workshop branch, never committed on main. Static assets referenced by
-# the notebooks (notebooks/assets/) stay tracked.
-/notebooks/*.ipynb
-/notebooks/completed/
+# Generated notebooks, notes, and assets. The source of truth is src/*.py and
+# locations/; all of this is produced on demand (`uv run workshopify render`
+# and `uv run workshopify generate`) and published to the workshop branch,
+# never committed on main.
+/notebooks/
+/notebooks-completed/
+/notebook-assets/
 /notes/
 
 # Git worktree checked out inside the repo for the dist branch (see

@@ -19,4 +19,9 @@ loc = load_slug(
 
 # The screenshot exercise 1 embeds, derived from the recorded location the
 # same way the rendered values are: placed on render/set, verified by check.
-ASSETS = {'notebooks/assets/geojson_io.png': loc.screenshot}
+#
+# It sits beside the notebook directories rather than inside one so that a
+# single relative reference resolves from both: notebooks/ and
+# notebooks-completed/ are at the same depth, so `../notebook-assets/...`
+# means the same thing in each.
+ASSETS = {'notebook-assets/geojson_io.png': loc.screenshot}

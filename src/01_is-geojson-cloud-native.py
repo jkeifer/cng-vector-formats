@@ -56,7 +56,7 @@ import json
 # Once we have a feature collection defined, we can copy it and paste it here so we can use it for this exercise.
 
 # %% [markdown]
-# ![geojson.io example](assets/geojson_io.png)
+# ![geojson.io example](../notebook-assets/geojson_io.png)
 
 # %%
 #| scrub-note:

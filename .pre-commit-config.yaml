@@ -17,3 +17,19 @@ repos:
         entry: uv run ruff format --force-exclude
         language: system
         types_or: [python]
+      # Catches a hand-edited rendered value, or a screenshot left behind by a
+      # half-finished `set location`, at the moment you try to commit it.
+      #
+      # This is the right home for the asset half of the check: your working
+      # tree has the staged screenshot, so there is something to verify
+      # against. CI runs from a bare checkout where that build output
+      # legitimately does not exist, and sets WORKSHOPIFY_SKIP_ASSETS to skip
+      # only that half.
+      #
+      # Repo-global rather than file-scoped, hence always_run.
+      - id: workshopify-check
+        name: workshopify check
+        entry: uv run workshopify check
+        language: system
+        pass_filenames: false
+        always_run: true
