@@ -60,7 +60,7 @@ dev = [
     "prek>=0.4.8",
     "pytest>=8.4.2",
     "ruff>=0.16.2",
-    "workshopify>=0.2.0",
+    "workshopify>=0.2.1",
 ]
 
 [tool.ruff]
