@@ -55,10 +55,12 @@ The source of truth for each notebook is a
 
 From each `src/` file we generate:
 
-* `notebooks/completed/NN_<name>.ipynb` — the completed notebook (Jupytext
+* `notebooks-completed/NN_<name>.ipynb` — the completed notebook (Jupytext
   render of the `.py`). Keeping the completed renders under
-  `notebooks/completed/` avoids colliding with the exercise notebooks and, on
-  the `workshop` branch, gives a tidy "answers live here" separation.
+  `notebooks-completed/` avoids colliding with the exercise notebooks and, on
+  the `workshop` branch, gives a tidy "answers live here" separation. It is a
+  *sibling* of `notebooks/`, not a child, so one relative asset reference
+  resolves from both.
 * `notebooks/NN_<name>.ipynb` — the **exercise** notebook handed to attendees,
   produced by
   [`ipynb-scrubber`](https://pypi.org/project/ipynb-scrubber/), which clears
@@ -67,12 +69,15 @@ From each `src/` file we generate:
 
 Both generation steps are configured in `pyproject.toml`, by
 `[tool.ipynb-scrubber]` (input/output paths, tags) and `[tool.jupytext]` (the
-`src/` ↔ `notebooks/completed/` pairing). Static assets referenced by the
-notebooks live in `notebooks/assets/` (tracked on `main`). They are derived from
+`src/` ↔ `notebooks-completed/` pairing). Static assets referenced by the
+notebooks live in `notebook-assets/`, alongside the two notebook directories
+rather than inside either, so that `../notebook-assets/...` means the same
+thing from each. Like the notebooks, they are build output and are **not**
+committed on `main`; run `uv run workshopify render` after cloning. They are derived from
 the recorded location the same way the rendered values are: the context module's
 `ASSETS` map names each one and its source, `render`/`set` place them, and
 `check` verifies them. Because an asset already publishes itself,
-`notebooks/assets/` must *not* also appear in `[tool.workshopify.build] include`
+`notebook-assets/` must *not* also appear in `[tool.workshopify.build] include`
 — one published path may have only one source, and the build rejects a
 duplicate outright.
 
@@ -86,7 +91,7 @@ ring points, the byte counts, the size ratio — is derived.
     uv run workshopify set location hiroshima
 
 That rewrites `src/*.py`, copies the location's screenshot to
-`notebooks/assets/geojson_io.png`, and records the new slug in
+`notebook-assets/geojson_io.png`, and records the new slug in
 `[tool.workshopify.params]`. It verifies every site it is about to change is present
 exactly once first, so a hand-edited source aborts the run rather than being
 half-rewritten. `uv run workshopify check` runs that verification alone, reporting
@@ -205,7 +210,7 @@ local equivalents:
 ```commandline
 uv run prek run --all-files
 uv run workshopify generate
-uv run jupyter execute notebooks/completed/NN_<name>.ipynb   # for each of 01, 02, 03
+uv run jupyter execute notebooks-completed/NN_<name>.ipynb   # for each of 01, 02, 03
 ```
 
 ## Presentation History

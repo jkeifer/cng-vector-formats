@@ -62,7 +62,7 @@ The interesting contents of this repo are, primarily, the Jupyter notebooks:
 
 * [`./notebooks`](./notebooks) holds the exercise notebooks to work through
   during the workshop.
-* [`./notebooks/completed`](./notebooks/completed) holds the completed version
+* [`./notebooks-completed`](./notebooks-completed) holds the completed version
   of each exercise, for reference or if you get stuck.
 * [`./notes`](./notes) holds the exercise notes.
 

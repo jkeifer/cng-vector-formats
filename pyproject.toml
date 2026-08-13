@@ -41,8 +41,13 @@ include = [
     "Dockerfile",
     "compose.yml",
     ".devcontainer",
+    # Ships verbatim so the published branch runs its own CI. The file is
+    # branch-agnostic by design: push/PR fire it here, and the monthly cron
+    # and manual dispatch fire it on main (a schedule only ever runs the
+    # default branch's copy), where it checks out `workshop` explicitly.
+    ".github/workflows/workshop.yml",
 ]
-# notebooks/assets is deliberately absent: its one file is the screenshot the
+# notebook-assets is deliberately absent: its one file is the screenshot the
 # context's ASSETS map owns, and an asset already publishes itself. Listing it
 # here too would give one published path two sources, which build rejects.
 
@@ -60,7 +65,7 @@ dev = [
     "prek>=0.4.8",
     "pytest>=8.4.2",
     "ruff>=0.16.2",
-    "workshopify>=0.2.1",
+    "workshopify>=0.2.2",
 ]
 
 [tool.ruff]
@@ -91,10 +96,10 @@ testpaths = ["tests"]
 [tool.jupytext]
 # The py:percent files in src/ are the source of truth, named for their
 # exercises (e.g. src/01_is-geojson-cloud-native.py). They sync out to the
-# completed notebooks in notebooks/completed/ (which are, in turn, scrubbed
+# completed notebooks in notebooks-completed/ (which are, in turn, scrubbed
 # into the exercise notebooks in notebooks/). The .py files give clean,
-# reviewable diffs in version control; everything under notebooks/ is
-# generated.
+# reviewable diffs in version control; every notebook is generated, and none
+# of them is committed.
 #
 # Workflow:
 #   1. Edit src/NN_<name>.py (or the notebook in Jupyter).
@@ -102,11 +107,11 @@ testpaths = ["tests"]
 #   3. `uv run workshopify generate` to regenerate the exercise
 #      notebooks + notes from the completed notebooks.
 #
-# Only the completed notebooks (notebooks/completed/) are paired; the
+# Only the completed notebooks (notebooks-completed/) are paired; the
 # generated exercise notebooks are build artifacts of the scrubber.
 
-# Pair .py source files in src/ with completed notebooks in notebooks/completed/.
-formats = "src///py:percent,notebooks/completed///ipynb"
+# Pair .py source files in src/ with completed notebooks in notebooks-completed/.
+formats = "src///py:percent,notebooks-completed///ipynb"
 
 # Keep outputs out of the .py (they live only in the .ipynb). Cell tags are
 # kept so cells that intentionally raise can carry the "raises-exception" tag
@@ -118,16 +123,16 @@ cell_metadata_filter = "tags,-all"
 clear-text = ""
 
 [[tool.ipynb-scrubber.files]]
-input = "notebooks/completed/01_is-geojson-cloud-native.ipynb"
+input = "notebooks-completed/01_is-geojson-cloud-native.ipynb"
 output = "notebooks/01_is-geojson-cloud-native.ipynb"
 notes-file = "notes/01_is-geojson-cloud-native.md"
 
 [[tool.ipynb-scrubber.files]]
-input = "notebooks/completed/02_the-well-knowns.ipynb"
+input = "notebooks-completed/02_the-well-knowns.ipynb"
 output = "notebooks/02_the-well-knowns.ipynb"
 notes-file = "notes/02_the-well-knowns.md"
 
 [[tool.ipynb-scrubber.files]]
-input = "notebooks/completed/03_reading-parquet-the-hard-way.ipynb"
+input = "notebooks-completed/03_reading-parquet-the-hard-way.ipynb"
 output = "notebooks/03_reading-parquet-the-hard-way.ipynb"
 notes-file = "notes/03_reading-parquet-the-hard-way.md"

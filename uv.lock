@@ -358,6 +358,18 @@ wheels = [
 ]
 
 [[package]]
+name = "click"
+version = "8.4.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/76/d4/81420972a676e8ffea40450d8c8c92943e7218a78fe9b64359836cc9876b/click-8.4.2.tar.gz", hash = "sha256:9a6cea6e60b17ebe0a44c5cc636d94f09bd66142c1cd7d8b4cd731c4917a15f6", size = 338000, upload-time = "2026-06-24T17:45:15.148Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fb/e2/79c688af8b210d232694e31e59da9f6ec747bae31c3f5946e4e9b98860d5/click-8.4.2-py3-none-any.whl", hash = "sha256:e6f9f66136c816745b9d65817da91d61d957fb16e02e4dcd0552553c5a197b76", size = 119243, upload-time = "2026-06-24T17:45:13.73Z" },
+]
+
+[[package]]
 name = "cng-vector-formats"
 version = "0.1.0"
 source = { virtual = "." }
@@ -403,7 +415,7 @@ dev = [
     { name = "prek", specifier = ">=0.4.8" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "ruff", specifier = ">=0.16.2" },
-    { name = "workshopify", specifier = ">=0.2.1" },
+    { name = "workshopify", specifier = ">=0.2.2" },
 ]
 
 [[package]]
@@ -2032,17 +2044,18 @@ wheels = [
 
 [[package]]
 name = "workshopify"
-version = "0.2.1"
+version = "0.2.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "click" },
     { name = "cogapp" },
     { name = "ipynb-scrubber" },
     { name = "jupytext" },
     { name = "tomlkit" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/52/01/89f7aac778712d1e8fcb2a3b242b8632402cbdc1b2157e5b5e6810b8d0a1/workshopify-0.2.1.tar.gz", hash = "sha256:1b5af4943d0f245b562942df7c2c99c2a0dea0df2e3a35be545e155ec0977bf1", size = 96343, upload-time = "2026-08-13T00:23:42.169Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7e/b6/d4d2bf658302175d1b723acac7b92478eeb9ae8d382480ca139ef38a6ec0/workshopify-0.2.2.tar.gz", hash = "sha256:cf30417f2c56ccbbf243bf8c6db5ad649e8d7fb32ea131f0c1f06c888a467489", size = 101860, upload-time = "2026-08-13T04:59:35.198Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f1/40/9fff2b24e997baf207bdebbfdae248cbff9c3902909347416662b89f64b7/workshopify-0.2.1-py3-none-any.whl", hash = "sha256:dd1d3c03e4396bf6d0ecab8a871555886d9683765cd9c95cab951e1210b05d8a", size = 45400, upload-time = "2026-08-13T00:23:40.972Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/6f/e2dc40e87630c4c4d09a2a5617ef5d0a73fee52777c6712bd711f1ce6a98/workshopify-0.2.2-py3-none-any.whl", hash = "sha256:a4e44ceeb9540a35d161fa3b57452f8823027fad45e168882e6908497f1f6a85", size = 47608, upload-time = "2026-08-13T04:59:33.819Z" },
 ]
 
 [[package]]
