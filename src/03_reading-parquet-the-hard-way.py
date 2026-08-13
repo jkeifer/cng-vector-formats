@@ -8,6 +8,14 @@
 # * file metadata is consolidated at the end of a file, and can be read entirely in at most two requests
 # * the metadata contains enough information for clients to selectively read only chunks that may contain targeted rows
 #
+# <div class="alert alert-block alert-info">
+# <b>Take note!</b>
+#
+# This workshop series is designed for multiple locations around the world, and as such this notebook as been written to be as generic as possible with regard to matched files/row groups/rows and the corresponding counts and geometry relationships. Depending on what location you are doing you might see some selection operations that don't fully make sense, like trying to further narrow down a set that has already been selected down to a single match.
+#
+# When you see this happen: think about what would need to be done if we did get more matches and we needed to filter futher. The query process in this notebook should be robust to any number of matches for each of the search layers, so treat each as a learning opportunity, even if the result doesn't change in the specific case.
+# </div>
+#
 # ## Predicate pushdown
 #
 # This "selective reading" is done by a process called "predicate pushdown". Predicate pushdown enables clients to skip reading potentially massive amounts of data by leveraging things like chunk statistics and chunk bloom filters to restrict reads to only those chunks that _may_ potentially contain target data.
@@ -72,20 +80,22 @@ os.environ.setdefault('HCTEF_CACHE_IMMUTABLE', '1')
 
 # %%
 import asyncio
+import hashlib
 import json
 import time
-import urllib
+import urllib.request
 
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 from urllib.parse import urljoin
 
 import aiohttp
 
 from devtools import pprint
+from hctef.aio.aiohttp_transport import AiohttpTransport
 from IPython.display import Pretty
 from por_que import AsyncHttpFile, FileMetadata, ParquetFile
 from shapely import (
@@ -97,6 +107,7 @@ from shapely import (
 # %% [markdown]
 # We'll also define a helper function for zipping async iterators together, which we'll use later.
 
+
 # %%
 async def azip(*iterators):
     """This is a silly zip implementation for async iterators that
@@ -106,8 +117,145 @@ async def azip(*iterators):
     async for val in first:
         yield (val, *[await anext(iterator) for iterator in rest])
 
+
+# %% [markdown]
+# And a couple helpers to handle some result caching and progress updates we'll run later in the exercise.
+
+
+# %%
+def parquet_progress():
+    status = display(Pretty('starting...'), display_id=True)
+    last = 0.0
+
+    def callback(phase, done, total):
+        nonlocal last
+        now = time.monotonic()
+        if done < total and now - last < 0.2:
+            return
+        last = now
+        status.update(Pretty(f'{phase}: {done:_} of {total:_}'))
+
+    return callback
+
+
+@dataclass
+class MetadataCacheEntry:
+    url: str
+    metadata: FileMetadata
+    size: int
+
+    @classmethod
+    def from_path(cls, path: Path) -> Self:
+        cached = json.loads(path.read_text())
+        return cls(
+            url=cached['url'],
+            metadata=FileMetadata.model_validate(cached['metadata']),
+            size=cached['size'],
+        )
+
+    def to_path(self, path: Path) -> None:
+        path.write_text(
+            json.dumps(
+                {
+                    'url': self.url,
+                    'size': self.size,
+                    'metadata': self.metadata.model_dump(mode='json'),
+                },
+            ),
+        )
+
+
+class FileMetadataCache:
+    def __init__(self) -> None:
+        self.dir = Path('.metadata-cache')
+        self.dir.mkdir(exist_ok=True)
+        self.version = version('por-que')
+
+    def get_path(self, url: str) -> Path:
+        sha = hashlib.sha1(url.encode())
+        sha.update(self.version.encode())
+        return self.dir / f'{sha.hexdigest()}.json'
+
+    def check(self, url: str) -> MetadataCacheEntry | None:
+        try:
+            return MetadataCacheEntry.from_path(self.get_path(url))
+        except Exception:  # noqa: BLE001
+            # any error loading the cache we just
+            # ignore as though there is no cache
+            return None
+
+    def set(self, contents: MetadataCacheEntry) -> None:
+        contents.to_path(self.get_path(contents.url))
+
+
+class BulkFileMetadataLoader:
+    def __init__(self, total: int, concurrency: int = 100) -> None:
+        self.scanned = 0
+        self.total = total
+        self.concurrency = concurrency
+        self._display = None
+        self.cache = FileMetadataCache()
+        self._transport = None
+        self.scan_progress()
+
+    async def __aenter__(self) -> Self:
+        # one transport, so every file shares a single connection pool
+        # instead of each paying its own handshake; the pool size is what
+        # bounds how many files we can be connecting to at any one time
+        self._transport = AiohttpTransport(
+            session_kwargs={
+                'connector': aiohttp.TCPConnector(limit=self.concurrency),
+            },
+        )
+        return self
+
+    async def __aexit__(self, *_) -> None:
+        if self._transport:
+            await self._transport.close()
+        self._transport = None
+
+    def scan_progress(self) -> None:
+        msg = Pretty(
+            f'{self.scanned} of {self.total} files scanned',
+        )
+        if not self._display:
+            self._display = display(
+                msg,
+                display_id=True,
+            )
+        else:
+            self._display.update(msg)
+
+    async def load_url(
+        self,
+        url: str,
+        columns: list[str] | None = None,
+    ) -> tuple[FileMetadata, int]:
+        cached = self.cache.check(url)
+
+        if cached:
+            # a cache hit needs no network at all, so it never touches the pool
+            metadata, size = cached.metadata, cached.size
+        else:
+            async with AsyncHttpFile(url, transport=self._transport) as f:
+                metadata = await FileMetadata.from_reader(f, columns=columns)
+                size = f.size
+                self.cache.set(
+                    MetadataCacheEntry(
+                        url=url,
+                        metadata=metadata,
+                        size=size,
+                    ),
+                )
+
+        self.scanned += 1
+        self.scan_progress()
+        return metadata, size
+
+
 # %% [markdown]
 # And we'll define a bounding box model, which we will be able to use for all of the bounding box operations in this exercise. Note that we could have used an existing model from a library, but by implementing our own we can see how simple the bounding box operations are.
+
 
 # %%
 @dataclass(slots=True, frozen=True)
@@ -203,15 +351,18 @@ geom_bbox
 # %%
 STAC_ROOT_URL = 'https://stac.overturemaps.org/catalog.json'
 
+
 def url_read(url: str) -> bytes:
     with urllib.request.urlopen(url) as response:
         return response.read()
-          
+
+
 def url_read_json(url: str) -> dict[str, Any]:
     return json.loads(url_read(url))
 
+
 # %%
-stac_root = store_read_json(STAC_ROOT_URL)
+stac_root = url_read_json(STAC_ROOT_URL)
 
 pprint(stac_root)
 
@@ -224,7 +375,7 @@ latest_release_url = urljoin(STAC_ROOT_URL, latest_link['href'])
 latest_release_url
 
 # %%
-release_catalog = url_read_json(session, latest_release_url)
+release_catalog = url_read_json(latest_release_url)
 
 buildings_link = next(
     link
@@ -232,7 +383,7 @@ buildings_link = next(
     if link['rel'] == 'child' and link['title'] == 'buildings'
 )
 buildings_url = urljoin(latest_release_url, buildings_link['href'])
-buildings_catalog = url_read_json(session, buildings_url)
+buildings_catalog = url_read_json(buildings_url)
 
 building_link = next(
     link
@@ -240,7 +391,7 @@ building_link = next(
     if link['rel'] == 'child' and link['title'] == 'building'
 )
 building_collection_url = urljoin(buildings_url, building_link['href'])
-building_collection = url_read_json(session, building_collection_url)
+building_collection = url_read_json(building_collection_url)
 
 building_collection
 
@@ -255,14 +406,16 @@ len(item_links)
 # Wow, that's a lot of files! But it is not unexpected: this is a worldwide building footprints dataset, so it has _a lot_ of records (we'll see exactly how many in a bit). To make it more efficient to access a subset of the dataset, Overture partitions the rows into smaller files. So we have a ton of data here, how will we ever find the record for which we are searching?
 #
 # First we need the item documents themselves: one small JSON file per parquet file. Fetching hundreds of documents one at a time would be annoyingly slow: each request would wait for the previous one to finish, paying the full network round trip every time. Instead, we can use parallelism to speed this up, making the requests for each file all at the same time. We can do this by using async python, creating coroutines up front, each of which fetches one of the files. Then we run the coroutines concurrently with `asyncio.gather`, so the round trips overlap. Keep this pattern in mind; we'll use it again shortly for something much bigger.
+#
+# We'll define a slightly different helper to fetch json, one that is async.
 
-We'll define a slightly different helper to fetch json, one that is async.
 
 # %%
-async def get_json(session: aiohttp.ClientSession, url: str) -> dict:
+async def get_json(session: aiohttp.ClientSession, url: str) -> dict[str, Any]:
     async with session.get(url) as response:
         response.raise_for_status()
         return await response.json()
+
 
 async with aiohttp.ClientSession() as session:
     items = await asyncio.gather(
@@ -300,20 +453,6 @@ parquet_urls[:3]
 #
 # Because these parses can take a while, `por-que` accepts a `progress` callback: it calls the function with the current phase of the parse and how far along it is. We can use that with an updating IPython display to get a live one-line status without spewing output. Let's make a small factory so every slow parse in this notebook can have its own status line, because then we have some insight to what's happening when things are taking awhile.
 
-# %%
-def parquet_progress():
-    status = display(Pretty('starting...'), display_id=True)
-    last = 0.0
-
-    def callback(phase, done, total):
-        nonlocal last
-        now = time.monotonic()
-        if done < total and now - last < 0.2:
-            return
-        last = now
-        status.update(Pretty(f'{phase}: {done:_} of {total:_}'))
-
-    return callback
 
 # %%
 async with AsyncHttpFile(parquet_urls[0]) as hf:
@@ -371,70 +510,34 @@ json.loads(
 #
 # Above, we read the geospatial metadata for a file, but we need to do it for all files. Reading the metadata can be slow due to network round trips and latency. To make reading the metadata across all files possible in a somewhat reasonable amount of time we can leverage parallelism (the same `asyncio.gather` pattern we used for the STAC items), but that comes at the cost of code complexity.
 #
-# In essence, the code below is creating an `AsyncHttpFile` instance for every file in our list. We open each of those instances within a context manager, so they will be automatically closed once we leave this context. With each of those `AsyncHttpFile` instances we can create a corresponding `FileMetadata` instance via an async function call. We put all those async calls into a list, so we can use `asyncio.gather` to run them in parallel, and we `await` the completion of the gather to get all the produced `FileMetadata` instances. Again, parallelism allows us to make many HTTP requests for the data at once, instead of having to wait as we would when running requests serially.
+# In essence, the code below hands each file's URL to `BulkFileMetadataLoader.load_url()`, which opens an `AsyncHttpFile` for that URL within a context manager (so it is automatically closed when the scan finishes) and uses it to build the corresponding `FileMetadata` instance. Each of those calls becomes a task, and we `await` an `asyncio.gather` over all of them to get the results. Again, parallelism allows us to make many HTTP requests for the data at once, instead of having to wait as we would when running requests serially.
 #
-# These `FileMetadata` instances we zip up with the corresponding URLs, and we use the resulting tuples to construct a dictionary keyed on the file URL. This gives us a mapping of a file's URL to its `FileMetadata` instance.
+# Each scan returns a `(metadata, size)` pair. We zip the metadata up with the corresponding URLs to construct a dictionary keyed on the file URL, giving us a mapping of a file's URL to its `FileMetadata` instance, and we sum the sizes to output the total number of bytes in this dataset across all files.
 #
-# We'll also collect and output the total number of bytes in this dataset summed across all files.
-#
-# Two important tricks make this workable at this scale:
+# Three important tricks make this workable at this scale:
 #
 # * **Column projection.** A full parse of one of these footers retains roughly 24 MB of parsed metadata per file: multiply by every file in the dataset and, depending on how much memory you have, you might just crash the process. But the filtering stages ahead only need the four bbox columns! Instead of parsing everything in the metadata, we can skip all the column chunk metadata we don't care about. To allow this, `FileMetadata.from_reader()` accepts a `columns=` projection, and if we use it to read only the bbox columns instead of everything we use only around 10% the memory. Note that the schema and the key/value `geo` metadata always parse fully, leaving our file-level bboxes are unaffected.
-# * **A parsed-metadata cache.** The network bytes are already covered by the disk cache, but the parse itself is CPU-bound and takes a few minutes for the whole dataset. So immediately after building `fms`, we persist it to `fms.json`; the guard in the cell below reloads it, making a re-run (or a crash recovery) seconds instead of minutes.
+# * **A parsed-metadata cache.** The network bytes are already covered by the disk cache, but the parse itself is CPU-bound and takes a few minutes for the whole dataset. So `FileMetadataCache` writes each file's parsed metadata and size to a JSON document under `.metadata-cache/`, named for a hash of the URL and the `por-que` version. `load_url()` checks that cache first, and a hit skips the parse _and_ the network entirely, making a re-run (or a crash recovery) seconds instead of minutes.
+# * **A shared connection pool.** Left to its own devices, an `AsyncHttpFile` builds its own HTTP transport, and with it its own pool of connections. Opening several hundred at once therefore means several hundred simultaneous attempts to connect to the same host, and the server will start dropping them on the floor. But going fully serial is no good either: we would pay a full round trip per file before any parsing could start. What we want is many requests in flight, but a bounded number. We get exactly that by sharing one connection pool: the loader is an async context manager that creates a single `AiohttpTransport` up front and hands it to every file. The pool is sized by the loader's `concurrency`, and it queues any request beyond that, so the bound is enforced at the one place the resource actually is, and files reuse each other's connections instead of each paying its own TCP and TLS handshake. An injected transport is caller-owned, so the loader closes it on the way out.
 #
-# And since this is the longest-running cell in the notebook, we'll keep ourselves sane with a live progress line: here `por-que`'s per-file progress callback is the wrong granularity (hundreds of files parsing concurrently), so instead we wrap each file's parse in a small coroutine that bumps a completed-files counter as it finishes.
+# And since this is the longest-running cell in the notebook, we'll keep ourselves sane with a live progress line: here `por-que`'s per-file progress callback is the wrong granularity (hundreds of files parsing concurrently), so instead the loader bumps a completed-files counter as each file finishes and updates a single display.
 
 # %%
 BBOX_COLS = ['bbox.xmin', 'bbox.ymin', 'bbox.xmax', 'bbox.ymax']
-FMS_CACHE = Path(f'fms_{version("por-que")}.json')
 
-fms: dict[str, FileMetadata] = {}
-total_bytes = 0
-if FMS_CACHE.exists():
-    cached = json.loads(FMS_CACHE.read_text())
-    fms = {
-        url: FileMetadata.model_validate(dump)
-        for url, dump in cached['fms'].items()
-    }
-    total_bytes = cached['total_bytes']
-
-len(fms)
-
-if not fms:
-    scanned = 0
-    scan_progress = display(
-        Pretty(f'{scanned} of {len(parquet_urls)} files scanned'),
-        display_id=True,
-    )
-
-    async def scan_file(f):
-        global scanned
-        fm = await FileMetadata.from_reader(f, columns=BBOX_COLS)
-        scanned += 1
-        scan_progress.update(
-            Pretty(f'{scanned} of {len(parquet_urls)} files scanned'),
-        )
-        return fm
-
+async with BulkFileMetadataLoader(len(parquet_urls)) as loader:
     fm_tasks = []
-    async with AsyncExitStack() as stack:
-        for url in parquet_urls:
-            f = await stack.enter_async_context(AsyncHttpFile(url))
-            total_bytes += f.size
-            fm_tasks.append(asyncio.create_task(scan_file(f)))
-        fms = dict(zip(parquet_urls, await asyncio.gather(*fm_tasks)))
+    for url in parquet_urls:
+        fm_tasks.append(
+            asyncio.create_task(
+                loader.load_url(url, columns=BBOX_COLS),
+            ),
+        )
 
-    FMS_CACHE.write_text(
-        json.dumps(
-            {
-                'por_que_version': POR_QUE_VERSION,
-                'total_bytes': total_bytes,
-                'fms': {
-                    url: json.loads(fm.model_dump_json()) for url, fm in fms.items()
-                },
-            },
-        ),
-    )
+    fms_and_sizes = await asyncio.gather(*fm_tasks)
+
+fms = dict(zip(parquet_urls, (fm for fm, _ in fms_and_sizes)))
+total_bytes = sum(size for _, size in fms_and_sizes)
 
 print(f'{total_bytes:_}')
 
@@ -575,6 +678,7 @@ schema.physical_to_logical_type(
 # %% [markdown]
 # Now that we can get these min/max statistics in a useful form, we can build up a bounding box for each row group. Let's make a function to construct a `BBox` instance for a given row group:
 
+
 # %%
 def get_rg_bbox(row_group) -> BBox:
     return BBox(
@@ -583,6 +687,7 @@ def get_rg_bbox(row_group) -> BBox:
         row_group.column_chunks['bbox.xmax'].statistics.converted_max_value,
         row_group.column_chunks['bbox.ymax'].statistics.converted_max_value,
     )
+
 
 # %% [markdown]
 # We can try it out and see what we get:
@@ -700,6 +805,7 @@ for row_index, bbox_tuple in enumerate(bbox_tuples):
 #
 # Let's make a function that, given a `ParquetFile` instance, will search for intersecting row group bounding boxes, then search those row groups for rows with intersecting bounding boxes.
 
+
 # %%
 async def find_intersecting_rows(pf: ParquetFile) -> dict[int, list[int]]:
     matched_rows = {}
@@ -732,6 +838,7 @@ async def find_intersecting_rows(pf: ParquetFile) -> dict[int, list[int]]:
                         matched_rows[rg.ordinal] = [row_index]
 
     return matched_rows
+
 
 # %% [markdown]
 # Now let's use our `find_intersecting_rows` function on each of our intersecting `ParquetFile` instances. We'll track the outputs in a nested dictionary structure mapping file URL to row group index to intersected row indices.
