@@ -56,7 +56,7 @@
 #
 # ### A persistent byte cache
 #
-# We are going to be making a _lot_ of HTTP range requests in this exercise. Under the hood, `por-que` reads bytes through a transport library called `hctef`, which can persist every byte range it fetches to a size-bounded disk cache. With the cache enabled, re-running a cell--or recovering from a kernel crash--reads from local disk instead of hitting the network again.
+# We are going to be making a _lot_ of HTTP range requests in this exercise. Under the hood, `por-que` reads bytes through a transport library called `hctef`, which can persist every byte range it fetches to a size-bounded disk cache. With the cache enabled, re-running a cell reads from local disk instead of hitting the network again.
 #
 # We configure the cache with environment variables before using `por-que`. We can also safely mark the cache immutable (skipping revalidation requests) because Overture release paths are versioned: the bytes at any given URL never change.
 
@@ -74,6 +74,7 @@ os.environ.setdefault('HCTEF_CACHE_IMMUTABLE', '1')
 import asyncio
 import json
 import time
+import urllib
 
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
@@ -96,7 +97,6 @@ from shapely import (
 # %% [markdown]
 # We'll also define a helper function for zipping async iterators together, which we'll use later.
 
-
 # %%
 async def azip(*iterators):
     """This is a silly zip implementation for async iterators that
@@ -106,10 +106,8 @@ async def azip(*iterators):
     async for val in first:
         yield (val, *[await anext(iterator) for iterator in rest])
 
-
 # %% [markdown]
 # And we'll define a bounding box model, which we will be able to use for all of the bounding box operations in this exercise. Note that we could have used an existing model from a library, but by implementing our own we can see how simple the bounding box operations are.
-
 
 # %%
 @dataclass(slots=True, frozen=True)
@@ -192,34 +190,33 @@ geom_bbox
 #
 # Overture Maps has a number of datasets available in parquet format, including the building footprints dataset we'll be using for this exercise. All are distributed from both AWS and Azure using their respective object storage services.
 #
-# Overture cuts a new release of the data roughly monthly, and--importantly for us--**old releases get deleted**. Hardcoding a release path is a great way to have a notebook that stops working a few months later (ask me how I know). What we want instead is a way to discover the latest release, and the files within it, dynamically.
+# Overture cuts a new release of the data roughly monthly, and, notably, **old releases get deleted**. Hardcoding a release path is a great way to have a notebook that stops working after a month or two (ask me how I know). What we want instead is a way to discover the latest release, and the files within it, dynamically.
 #
 # ### The Overture STAC catalog
 #
-# Overture publishes a [STAC](https://stacspec.org/) catalog describing every release at `https://stac.overturemaps.org/catalog.json`. STAC (SpatioTemporal Asset Catalog) is a specification for describing geospatial data with JSON metadata; if you've used a STAC API before, note this is the other flavor: a **static catalog**, nothing but plain JSON files linked to each other, served over HTTP. There is no search endpoint--a client navigates by fetching a JSON document, inspecting its `links` array, and following `href`s of interest. That makes a static catalog itself a nice example of cloud-native thinking: it's just files, any dumb object store can host it, and the client does the work.
+# Overture publishes a [STAC](https://stacspec.org/) catalog describing every release at `https://stac.overturemaps.org/catalog.json`. STAC (SpatioTemporal Asset Catalog) is a specification for describing geospatial data with JSON metadata; if you've used a STAC API before, note this is the other flavor: a **static catalog**, nothing but plain JSON files linked to each other, served over HTTP. We have no search endpoint: a client navigates by fetching a JSON document, inspecting its `links` array, and following `href`s of interest. That makes a static catalog itself a nice example of cloud-native thinking: it's just files, any dumb object store can host it, and the client does the work.
 #
 # The links use **relative** `href`s (e.g. `./2026-06-17.0/catalog.json`), so we resolve each against the URL of the document we found it in, just like a browser resolves relative links in HTML.
 #
-# Let's define a small helper to fetch JSON documents, then grab the root catalog and take a look.
+# Let's define some small helpers to fetch JSON documents, then grab the root catalog and take a look.
 
 # %%
 STAC_ROOT_URL = 'https://stac.overturemaps.org/catalog.json'
 
-
-async def get_json(session: aiohttp.ClientSession, url: str) -> dict:
-    async with session.get(url) as response:
-        response.raise_for_status()
-        return await response.json()
-
+def url_read(url: str) -> bytes:
+    with urllib.request.urlopen(url) as response:
+        return response.read()
+          
+def url_read_json(url: str) -> dict[str, Any]:
+    return json.loads(url_read(url))
 
 # %%
-async with aiohttp.ClientSession() as session:
-    stac_root = await get_json(session, STAC_ROOT_URL)
+stac_root = store_read_json(STAC_ROOT_URL)
 
-pprint(stac_root['links'])
+pprint(stac_root)
 
 # %% [markdown]
-# The root catalog has a `child` link per release. Notice the extra `latest` marker Overture puts on the newest release's link: that is our dynamic version pin. Let's follow it down the tree. The releases are partitioned by theme, then by type within the theme--the same `theme=buildings/type=building` hierarchy you see in the object-store paths--so from the release catalog we follow the `buildings` theme child, and from there the `building` type child, which is a STAC collection.
+# The root catalog has a `child` link per release. Notice the extra `latest` marker Overture puts on the newest release's link: that is our dynamic version pin. Let's follow it down the tree. The releases are partitioned by theme, then by type within the theme, so from the release catalog we follow the `buildings` theme child, and from there the `building` type child, which is a STAC collection.
 
 # %%
 latest_link = next(link for link in stac_root['links'] if link.get('latest'))
@@ -227,26 +224,25 @@ latest_release_url = urljoin(STAC_ROOT_URL, latest_link['href'])
 latest_release_url
 
 # %%
-async with aiohttp.ClientSession() as session:
-    release_catalog = await get_json(session, latest_release_url)
+release_catalog = url_read_json(session, latest_release_url)
 
-    buildings_link = next(
-        link
-        for link in release_catalog['links']
-        if link['rel'] == 'child' and link['title'] == 'buildings'
-    )
-    buildings_url = urljoin(latest_release_url, buildings_link['href'])
-    buildings_catalog = await get_json(session, buildings_url)
+buildings_link = next(
+    link
+    for link in release_catalog['links']
+    if link['rel'] == 'child' and link['title'] == 'buildings'
+)
+buildings_url = urljoin(latest_release_url, buildings_link['href'])
+buildings_catalog = url_read_json(session, buildings_url)
 
-    building_link = next(
-        link
-        for link in buildings_catalog['links']
-        if link['rel'] == 'child' and link['title'] == 'building'
-    )
-    building_collection_url = urljoin(buildings_url, building_link['href'])
-    building_collection = await get_json(session, building_collection_url)
+building_link = next(
+    link
+    for link in buildings_catalog['links']
+    if link['rel'] == 'child' and link['title'] == 'building'
+)
+building_collection_url = urljoin(buildings_url, building_link['href'])
+building_collection = url_read_json(session, building_collection_url)
 
-release_catalog['id']
+building_collection
 
 # %% [markdown]
 # The `building` collection has an `item` link for every parquet file in the dataset. How many are there?
@@ -256,11 +252,18 @@ item_links = [link for link in building_collection['links'] if link['rel'] == 'i
 len(item_links)
 
 # %% [markdown]
-# Wow, that's a lot of files! But it is not unexpected: this is a worldwide building footprints dataset, so it has _a lot_ of records (we'll see exactly how many in a bit). To make it more efficient to access a subset of the dataset, Overture partitions the rows into files around 1 GB in size. So we have a ton of data here, how will we ever find the record for which we are searching?
+# Wow, that's a lot of files! But it is not unexpected: this is a worldwide building footprints dataset, so it has _a lot_ of records (we'll see exactly how many in a bit). To make it more efficient to access a subset of the dataset, Overture partitions the rows into smaller files. So we have a ton of data here, how will we ever find the record for which we are searching?
 #
-# First we need the item documents themselves: one small JSON file per parquet file. Fetching hundreds of documents one at a time would be painfully slow--each request would wait for the previous one to finish, paying the full network round trip every time. Instead we can create all the fetch coroutines up front and run them concurrently with `asyncio.gather`, so the round trips overlap. Keep this pattern in mind; we'll use it again shortly for something much bigger.
+# First we need the item documents themselves: one small JSON file per parquet file. Fetching hundreds of documents one at a time would be annoyingly slow: each request would wait for the previous one to finish, paying the full network round trip every time. Instead, we can use parallelism to speed this up, making the requests for each file all at the same time. We can do this by using async python, creating coroutines up front, each of which fetches one of the files. Then we run the coroutines concurrently with `asyncio.gather`, so the round trips overlap. Keep this pattern in mind; we'll use it again shortly for something much bigger.
+
+We'll define a slightly different helper to fetch json, one that is async.
 
 # %%
+async def get_json(session: aiohttp.ClientSession, url: str) -> dict:
+    async with session.get(url) as response:
+        response.raise_for_status()
+        return await response.json()
+
 async with aiohttp.ClientSession() as session:
     items = await asyncio.gather(
         *[
@@ -272,12 +275,11 @@ async with aiohttp.ClientSession() as session:
 pprint(items[0])
 
 # %% [markdown]
-# Each item describes one parquet file: where it lives (the `assets`, with an HTTPS URL for each of AWS and Azure), plus some properties about it, and even the bounding box of everything in the file (hold that thought--we'll come back to it). We'll read from AWS; let's pull out the HTTPS URL for every file.
+# Each item describes one parquet file: where it lives (the `assets`, with an HTTPS URL for each of AWS and Azure), plus some properties about it, and even the bounding box of everything in the file. We'll read from AWS; let's pull out the HTTPS S3 URLs for every file.
 
 # %%
 parquet_urls = [item['assets']['aws']['href'] for item in items]
 parquet_urls[:3]
-
 
 # %% [markdown]
 # ## Loading one of these files using `por-que`
@@ -288,16 +290,15 @@ parquet_urls[:3]
 # * `FileMetadata`
 # * `ParquetFile`
 #
-# The first of these, `AsyncHttpFile`, is a helper class that can open an HTTP(S) URL and expose it as a readable filelike object. We need this to allow the other two classes to do their parsing of the parquet files over HTTP.
+# The first of these, `AsyncHttpFile`, is a helper class that can open an HTTP(S) URL and expose it as a readable filelike object (and is actually re-exported from `hctef`; this is what we set the caching env vars for at the beginning). We need this to allow the other two classes to do their parsing of the parquet files over HTTP.
 #
 # `FileMetadata` is a class that represents the block of metadata at the end of a parquet file. This metadata includes both file level information, like the schema, and chunk level metadata via row groups and their column chunks. Passing a readable filelike object into `FileMetadata.from_reader()` will parse the metadata object from said file.
 #
 # `ParquetFile` is a class that represents the entire physical and logical structure of a parquet file. This includes `FileMetadata`, but also all data page locations and metadata. `ParquetFile` and its nested `DataPage` objects allow reading data from the file. `ParquetFile.from_reader()`, similar to above, will parse the full structure and metadata from a passed in readable filelike object.
 #
-# Let's see how we can use `AsyncHttpFile` with `ParquetFile` and some of what the latter exposes. Note that creating the `ParquetFile` instances has to make many random reads within the file, so this is not a fast process, especially over the network (though thanks to the byte cache we set up at the top, re-running it is nearly instant).
+# Let's see how we can use `AsyncHttpFile` with `ParquetFile` and some of what the latter exposes. Note that creating the `ParquetFile` instances has to make many random reads within the file, so this is not a fast process, especially over the network (though thanks to the byte cache we set up at the top, re-running it, if required, is nearly instant).
 #
-# Because these parses can take a while, `por-que` accepts a `progress` callback: it calls the function with the current phase of the parse and how far along it is. We can use that with an updating IPython display to get a live one-line status without spewing output. Let's make a small factory so every slow parse in this notebook can have its own status line (the time-based throttle just keeps us from flooding the kernel's messaging when the parse is fast).
-
+# Because these parses can take a while, `por-que` accepts a `progress` callback: it calls the function with the current phase of the parse and how far along it is. We can use that with an updating IPython display to get a live one-line status without spewing output. Let's make a small factory so every slow parse in this notebook can have its own status line, because then we have some insight to what's happening when things are taking awhile.
 
 # %%
 def parquet_progress():
@@ -314,7 +315,6 @@ def parquet_progress():
 
     return callback
 
-
 # %%
 async with AsyncHttpFile(parquet_urls[0]) as hf:
     pf = await ParquetFile.from_reader(
@@ -322,7 +322,6 @@ async with AsyncHttpFile(parquet_urls[0]) as hf:
         parquet_urls[0],
         progress=parquet_progress(),
     )
-
 
 # %%
 pprint(pf.metadata.schema_root)
@@ -341,11 +340,11 @@ pprint(pf.metadata.row_groups[0])
 Path('./buildings.parquet.json').write_text(pf.to_json())
 
 # %% [markdown]
-# Now, download the json file (right-click on the file in the file explorer sidebar), then browse to [ver-por-que](https://teotl.dev/ver-por-que) and load the JSON file.
+# Now, download the json file (right-click on the file in the file explorer sidebar), then browse to [ver-por-que](https://teotl.dev/ver-por-que) and load the JSON file (via the file picker or just drag-and-drop).
 #
 # Key things to notice:
 #
-# * how data page region is logically organized into row groups and column chunks, but all the row group and column chunk information comes from the file metadata
+# * how the data page region is logically organized into row groups and column chunks, but all the row group and column chunk information comes from the file metadata
 # * the schema is not a flat set of columns: it has nested data structures, like the bbox columns
 # * the general layout of the file bytes
 
@@ -380,30 +379,27 @@ json.loads(
 #
 # Two important tricks make this workable at this scale:
 #
-# * **Column projection.** A full parse of one of these footers retains roughly 24 MB of parsed metadata per file--multiply by every file in the dataset and the kernel dies. But the filtering stages ahead only need the four bbox columns, and `FileMetadata.from_reader()` accepts a `columns=` projection that skips parsing all the column-chunk metadata we don't care about, retaining ~10x less memory (the schema and the key/value `geo` metadata always parse fully, so our file-level bboxes are unaffected).
-# * **A parsed-metadata cache.** The network bytes are already covered by the disk cache, but the parse itself is CPU-bound and takes a few minutes for the whole dataset. So immediately after building `fms`, we persist it to `fms.json`; the guard in the cell below reloads it, making a re-run (or a crash recovery) cost seconds instead of minutes. The dump format can change between `por-que` versions, so we store the version alongside and ignore the cache on mismatch.
+# * **Column projection.** A full parse of one of these footers retains roughly 24 MB of parsed metadata per file: multiply by every file in the dataset and, depending on how much memory you have, you might just crash the process. But the filtering stages ahead only need the four bbox columns! Instead of parsing everything in the metadata, we can skip all the column chunk metadata we don't care about. To allow this, `FileMetadata.from_reader()` accepts a `columns=` projection, and if we use it to read only the bbox columns instead of everything we use only around 10% the memory. Note that the schema and the key/value `geo` metadata always parse fully, leaving our file-level bboxes are unaffected.
+# * **A parsed-metadata cache.** The network bytes are already covered by the disk cache, but the parse itself is CPU-bound and takes a few minutes for the whole dataset. So immediately after building `fms`, we persist it to `fms.json`; the guard in the cell below reloads it, making a re-run (or a crash recovery) seconds instead of minutes.
 #
 # And since this is the longest-running cell in the notebook, we'll keep ourselves sane with a live progress line: here `por-que`'s per-file progress callback is the wrong granularity (hundreds of files parsing concurrently), so instead we wrap each file's parse in a small coroutine that bumps a completed-files counter as it finishes.
 
 # %%
 BBOX_COLS = ['bbox.xmin', 'bbox.ymin', 'bbox.xmax', 'bbox.ymax']
-FMS_CACHE = Path('fms.json')
-POR_QUE_VERSION = version('por-que')
+FMS_CACHE = Path(f'fms_{version("por-que")}.json')
 
 fms: dict[str, FileMetadata] = {}
 total_bytes = 0
 if FMS_CACHE.exists():
     cached = json.loads(FMS_CACHE.read_text())
-    if cached['por_que_version'] == POR_QUE_VERSION:
-        fms = {
-            url: FileMetadata.model_validate(dump)
-            for url, dump in cached['fms'].items()
-        }
-        total_bytes = cached['total_bytes']
+    fms = {
+        url: FileMetadata.model_validate(dump)
+        for url, dump in cached['fms'].items()
+    }
+    total_bytes = cached['total_bytes']
 
 len(fms)
 
-# %%
 if not fms:
     scanned = 0
     scan_progress = display(
@@ -480,7 +476,7 @@ urls_that_intersect
 # %% [markdown]
 # ### An aside: catalog-level vs file-level metadata
 #
-# Remember the bounding box on each STAC item? That is the exact same information we just extracted from each file's `geo` key/value metadata--but hoisted up to the catalog level, available _before touching a single parquet footer_. A client that trusts the catalog could have done this file-level filtering step from the item documents alone:
+# Remember the bounding box on each STAC item? That is the exact same information we just extracted from each file's `geo` key/value metadata, just hoisted up to the catalog level, available _before touching a single parquet footer_. A client that trusts the catalog could have done this file-level filtering step from the item documents alone:
 
 # %%
 stac_urls_that_intersect = [
@@ -576,10 +572,8 @@ schema.physical_to_logical_type(
     'max_value': bbox_min_cc0.statistics.converted_max_value,
 }
 
-
 # %% [markdown]
 # Now that we can get these min/max statistics in a useful form, we can build up a bounding box for each row group. Let's make a function to construct a `BBox` instance for a given row group:
-
 
 # %%
 def get_rg_bbox(row_group) -> BBox:
@@ -589,7 +583,6 @@ def get_rg_bbox(row_group) -> BBox:
         row_group.column_chunks['bbox.xmax'].statistics.converted_max_value,
         row_group.column_chunks['bbox.ymax'].statistics.converted_max_value,
     )
-
 
 # %% [markdown]
 # We can try it out and see what we get:
@@ -620,7 +613,7 @@ pprint(pf.metadata.row_groups[0].column_chunks['geometry'])
 #
 # To read rows we need to get full `ParquetFile` instances for our intersecting files. Once we have a `ParquetFile` instance, we can read its column chunks.
 #
-# We're going to need a `ParquetFile` instance per intersecting file. Because instantiating them is a time consuming operation, let's instantiate them all in parallel here, building them up into a dictionary keyed on the file URL. Like the earlier `FileMetadata` scan, we pass a `columns=` projection so `por-que` only materializes the physical structure for the handful of columns we will actually read--the bbox columns for filtering, plus `names.primary` and `geometry` for the final lookups--which makes this parse dramatically faster than a full-file scan. Then we can just grab one of them to use for the rest of this section as we prove out our process (making sure it is for the same file as the `FileMetadata` instance we were using above).
+# We're going to need a `ParquetFile` instance per intersecting file. Because instantiating them is a time consuming operation, let's instantiate them all in parallel here, building them up into a dictionary keyed on the file URL. Like the earlier `FileMetadata` scan, we pass a `columns=` projection so `por-que` only materializes the physical structure for the handful of columns we will actually read: the bbox columns for filtering, plus `names.primary` and `geometry` for the final lookups. Filtering here makes this parse dramatically faster than a full-file scan. Then we can just grab one of them to use for the remainder of this section as we prove out the rest of our process (making sure it is for the same file as the `FileMetadata` instance we were using above).
 
 # %%
 SEARCH_COLS = [*BBOX_COLS, 'names.primary', 'geometry']
@@ -661,7 +654,6 @@ bbox_chunks.keys()
 # %%
 pprint(bbox_chunks['bbox.xmin'])
 
-
 # %% [markdown]
 # We see from the above that the name of the type for our column chunk instances is `PhysicalColumnChunk`. That's because these column chunks are not the column chunk metadata in the file metadata, but are instead representative of all the physical byte ranges in the file that make up this "column chunk" abstraction within the file. This includes the column chunk metadata from the file metadata, any indices in the file metadata (column index or offset index), any dictionary page, or, most prominently, the data pages that store the data for the column chunk.
 #
@@ -689,7 +681,7 @@ async with AsyncHttpFile(urls_that_intersect[0]) as hf:
 bbox_tuples[:4]
 
 # %% [markdown]
-# This result, it might be unexpected. Each data value we see is not a bare float but a `PageValue`, a named tuple carrying the value alongside its definition and repetition levels.
+# This result, it might be unexpected. Each data value we see is not a bare float but a `PageValue`, a named tuple carrying the value alongside its definition and repetition levels. (For the sake of completeness, the fourth value in this tuple that we don't show here is just the value repeated, but in its logical form, if it has one. But the logical representation is not part of the standard `(value, def, rep)` three-tuple, it's just a convenience specific to `por-que`.)
 #
 # Exactly what the definition and repetition levels are and how they work is outside the scope of this exercise; the short version is they are used in reconstructing nested types like maps, arrays, and structs, by providing the necessary state to determine when and where within a data tree to end/start a data structure or insert nulls. To learn more about how this works, review the three-part blog post series on the Apache Arrow blog ([part 1](https://arrow.apache.org/blog/2022/10/05/arrow-parquet-encoding-part-1/), [part 2](https://arrow.apache.org/blog/2022/10/08/arrow-parquet-encoding-part-2/), and [part 3](https://arrow.apache.org/blog/2022/10/17/arrow-parquet-encoding-part-3/)) or dig into the `por_que.structuring` code.
 #
@@ -700,7 +692,6 @@ for row_index, bbox_tuple in enumerate(bbox_tuples):
     if BBox(*(i.value for i in bbox_tuple)).intersects(geom_bbox):
         print(row_index)
 
-
 # %% [markdown]
 # Now we have all the steps we need to identify rows that intersect our search bounding box. Let's put all these steps together so we can iterate through all the intersecting URLs and find any and all rows with intersecting bounding boxes!
 
@@ -708,7 +699,6 @@ for row_index, bbox_tuple in enumerate(bbox_tuples):
 # ## Putting this all together
 #
 # Let's make a function that, given a `ParquetFile` instance, will search for intersecting row group bounding boxes, then search those row groups for rows with intersecting bounding boxes.
-
 
 # %%
 async def find_intersecting_rows(pf: ParquetFile) -> dict[int, list[int]]:
@@ -742,7 +732,6 @@ async def find_intersecting_rows(pf: ParquetFile) -> dict[int, list[int]]:
                         matched_rows[rg.ordinal] = [row_index]
 
     return matched_rows
-
 
 # %% [markdown]
 # Now let's use our `find_intersecting_rows` function on each of our intersecting `ParquetFile` instances. We'll track the outputs in a nested dictionary structure mapping file URL to row group index to intersected row indices.
@@ -784,14 +773,12 @@ for cc in pfs[file_url].column_chunks:
 
 pprint(primary_name_chunk)
 
-
 # %% [markdown]
 # With the column chunk identified, we can parse all its data pages to get all its rows.
 
 # %%
 async with AsyncHttpFile(file_url) as hf:
     name_rows = [name async for name in primary_name_chunk.parse_all_data_pages(hf)]
-
 
 # %% [markdown]
 # Now it's simply a matter of grabbing each row with our target row indices.
@@ -814,7 +801,6 @@ for cc in pfs[file_url].column_chunks:
         break
 
 pprint(geom_chunk)
-
 
 # %% [markdown]
 # Now we can read the rows from the column chunk, exactly as we did for the names. We parse the chunk once, then pick out our target row indices from the parsed rows. Let's also print those out and see what they look like.
