@@ -403,7 +403,7 @@ dev = [
     { name = "prek", specifier = ">=0.4.8" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "ruff", specifier = ">=0.16.2" },
-    { name = "workshopify", specifier = ">=0.2.0" },
+    { name = "workshopify", specifier = ">=0.2.1" },
 ]
 
 [[package]]
@@ -2032,7 +2032,7 @@ wheels = [
 
 [[package]]
 name = "workshopify"
-version = "0.2.0"
+version = "0.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cogapp" },
@@ -2040,9 +2040,9 @@ dependencies = [
     { name = "jupytext" },
     { name = "tomlkit" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/93/60/3ca3a9ff40a56f4842ab629459cc6523dbe9ae167ac06b72d14994769a0d/workshopify-0.2.0.tar.gz", hash = "sha256:ad1fe205da7c3625a5b6cf8808052ea33bafb07d728fa33fdca0ab087b343922", size = 94193, upload-time = "2026-08-12T19:42:59.729Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/52/01/89f7aac778712d1e8fcb2a3b242b8632402cbdc1b2157e5b5e6810b8d0a1/workshopify-0.2.1.tar.gz", hash = "sha256:1b5af4943d0f245b562942df7c2c99c2a0dea0df2e3a35be545e155ec0977bf1", size = 96343, upload-time = "2026-08-13T00:23:42.169Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9d/6e/13597db199fd0976487ba21daaa21af390cd441c8507d52cb7b53baca903/workshopify-0.2.0-py3-none-any.whl", hash = "sha256:b46a211c251c136f77ab730ae0d32e74a08c4488b7571837ac1ca4732fff4749", size = 43535, upload-time = "2026-08-12T19:42:58.483Z" },
+    { url = "https://files.pythonhosted.org/packages/f1/40/9fff2b24e997baf207bdebbfdae248cbff9c3902909347416662b89f64b7/workshopify-0.2.1-py3-none-any.whl", hash = "sha256:dd1d3c03e4396bf6d0ecab8a871555886d9683765cd9c95cab951e1210b05d8a", size = 45400, upload-time = "2026-08-13T00:23:40.972Z" },
 ]
 
 [[package]]
