@@ -56,7 +56,8 @@ The source of truth for each notebook is a
 From each `src/` file we generate:
 
 * `notebooks-completed/NN_<name>.ipynb` — the completed notebook (Jupytext
-  render of the `.py`). Keeping the completed renders under
+  render of the `.py`, with the cog templating stripped out first, so the
+  generators never reach a reader). Keeping the completed renders under
   `notebooks-completed/` avoids colliding with the exercise notebooks and, on
   the `workshop` branch, gives a tidy "answers live here" separation. It is a
   *sibling* of `notebooks/`, not a child, so one relative asset reference
@@ -68,8 +69,12 @@ From each `src/` file we generate:
 * `notes/NN_<name>.md` — notes extracted from cells tagged for note-taking.
 
 Both generation steps are configured in `pyproject.toml`, by
-`[tool.ipynb-scrubber]` (input/output paths, tags) and `[tool.jupytext]` (the
-`src/` ↔ `notebooks-completed/` pairing). Static assets referenced by the
+`[tool.ipynb-scrubber]` (input/output paths, tags) and `[tool.jupytext]` (how
+cells and metadata render). Generation runs one way, `src/` → notebooks: the
+two directories are deliberately *not* a Jupytext pair, because the render
+strips the cog templating and a pair would sync that stripped text back over
+the `.py`. See the comment on `[tool.jupytext]` for the full reasoning.
+Static assets referenced by the
 notebooks live in `notebook-assets/`, alongside the two notebook directories
 rather than inside either, so that `../notebook-assets/...` means the same
 thing from each. Like the notebooks, they are build output and are **not**
@@ -121,13 +126,17 @@ is derived, so nothing else needs writing down.
 
 ### Editing
 
-Edit `src/NN_<name>.py` directly, or edit a completed notebook in Jupyter and
-sync it back to the `.py`:
+Edit `src/NN_<name>.py`, then regenerate:
 
 ```commandline
-# after editing a notebook in Jupyter, sync it back to src/:
-uv run jupytext --sync src/*.py
+uv run workshopify generate
 ```
+
+The generated notebooks are read-only build artifacts. Open one in Jupyter to
+run it or to try an edit out, but changes there do not travel back — the next
+`generate` overwrites them. Do **not** run `jupytext --sync` against `src/`:
+it would take the generated notebook, which no longer carries the file's cog
+generators, as the newer half of a pair and write it over your source.
 
 ## Publishing to the `workshop` branch
 

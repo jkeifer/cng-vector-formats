@@ -10,7 +10,7 @@ requires-python = ">=3.14"
 dependencies = [
     "aiohttp>=3.13.1",
     "devtools>=0.12.2",
-    "hctef[async]>=0.4.0",
+    "hctef[async]>=0.4.1",
     "ipython>=9.16.1",
     "jupyterlab>=4.4.6",
     "por-que>=0.5.0",
@@ -95,24 +95,28 @@ testpaths = ["tests"]
 
 [tool.jupytext]
 # The py:percent files in src/ are the source of truth, named for their
-# exercises (e.g. src/01_is-geojson-cloud-native.py). They sync out to the
-# completed notebooks in notebooks-completed/ (which are, in turn, scrubbed
-# into the exercise notebooks in notebooks/). The .py files give clean,
-# reviewable diffs in version control; every notebook is generated, and none
-# of them is committed.
+# exercises (e.g. src/01_is-geojson-cloud-native.py). `workshopify generate`
+# renders each one into a completed notebook in notebooks-completed/, which it
+# then scrubs into the exercise notebook in notebooks/. The .py files give
+# clean, reviewable diffs in version control; every notebook is generated, and
+# none of them is committed.
 #
 # Workflow:
-#   1. Edit src/NN_<name>.py (or the notebook in Jupyter).
-#   2. `uv run jupytext --sync src/*.py` to sync the pair.
-#   3. `uv run workshopify generate` to regenerate the exercise
-#      notebooks + notes from the completed notebooks.
+#   1. Edit src/NN_<name>.py.
+#   2. `uv run workshopify generate` to regenerate the notebooks + notes.
 #
-# Only the completed notebooks (notebooks-completed/) are paired; the
-# generated exercise notebooks are build artifacts of the scrubber.
-
-# Pair .py source files in src/ with completed notebooks in notebooks-completed/.
-formats = "src///py:percent,notebooks-completed///ipynb"
-
+# There is deliberately no `formats` pairing here, and adding one back would
+# destroy source. Generation strips the embedded cog templating before handing
+# the text to jupytext, so a completed notebook is not a round-trip of its .py
+# -- it is missing every `[[[cog ...]]]` block. Pair the two directories and
+# jupytext resolves that difference in favour of whichever file is newer, which
+# after a generate is always the notebook: `jupytext --sync src/*.py` then
+# rewrites each .py with the stripped text, silently deleting its generators.
+# Notebooks are one-way build artifacts; edit the .py and regenerate.
+#
+# The settings below still apply: workshopify loads this config explicitly and
+# hands it to the jupytext API calls that read the .py and write the .ipynb.
+#
 # Keep outputs out of the .py (they live only in the .ipynb). Cell tags are
 # kept so cells that intentionally raise can carry the "raises-exception" tag
 # nbclient/`jupyter execute` needs to continue past them.
