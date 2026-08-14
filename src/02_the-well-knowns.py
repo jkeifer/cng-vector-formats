@@ -1,13 +1,13 @@
 # %% [markdown]
 # # The well-knowns: text and binary
 #
-# Two related formats for representing geospatial vectors are Well-Known Text (WKT) and Well-Known Binary (WKB). Let's take a look at these formats as WKB in particular will be important once we get to GeoParquet.
+# Two related means of representing geospatial vectors are Well-Known Text (WKT) and Well-Known Binary (WKB). Let's take a look at both of these, as WKB in particular will be important once we get to GeoParquet.
 #
 # ## What are WKT and WKB?
 #
 # ### WKT
 #
-# WKT is a simple text format for geometries. It's basically the stripped-down version of GeoJSON's geometry structure. Three examples follow of a point, line, and polygon geometry.
+# WKT is a simple text encoding for geometries. It's basically the stripped-down version of GeoJSON's geometry structure. Three examples follow of a point, line, and polygon geometry.
 #
 # * Point geometry
 #   * GeoJSON
@@ -53,7 +53,7 @@
 #
 #   * WKT: `POLYGON((0 0, 4 0, 4 4, 0 4, 0 0))`
 #
-# Notice: geometry type keyword, then coordinates in parentheses. No nesting, no attributes—just the geometry. In both cases notice the coordinate pair order is `X, Y`, which in WGS84 (EPSG:4326) makes these coordinates `longitude, latitude` order. Notably, WKT can express coordinates in any CRS: unlike GeoJSON post-RFC 7946, it is not limited to just WGS84 coordinates. The CRS reference must be supplied separately, typically via Spatial Reference Identifier (SRID) metadata or external documentation; OGC defines two WKT formats for CRS representations, which are not to be confused with the WKT format for geometries we are discussing here.
+# Notice: geometry type keyword, then coordinates in parentheses. No nesting, no attributes, just the geometry. In both cases the coordinate pair order is `X, Y`, which in WGS84 (EPSG:4326) makes these coordinates `longitude, latitude` order. Notably, WKT can express coordinates in any CRS: unlike GeoJSON post-RFC 7946, it is not limited to WGS84 coordinates. The CRS reference must be supplied separately, typically via Spatial Reference Identifier (SRID) metadata or external documentation; OGC defines two WKT encodings for CRS representations, which are not to be confused with the WKT encodings for geometries we are discussing here.
 #
 # ### WKB
 #
@@ -91,7 +91,9 @@
 #
 # ## Is this a CNG format? Why do we care?
 #
-# Great question! No, WKT and WKB are decidedly not CNG formats. They're not really data formats themselves, they just define how to encode geometries in text and binary formats, respectively. So we don't generally use WKT or WKB by themselves, but as a way to represent a geometry in a larger data object or file. This is exactly why we need to talk about them, because GeoParquet (which we'll look at in the next exercise) uses WKB encoding to store geometries. This exercise is really just a necessary prerequisite to help us make the jump from the easy-and-human-readable-but-not-CNG GeoJSON format to the much more complex GeoParquet format by preparing us for what we'll be reading out of a GeoParquet's geometry column.
+# Great question! No, WKT and WKB are decidedly not CNG formats. They're not really data formats all. They really just define how to _encode_ geometries in text and binary formats, respectively. So we don't generally use WKT or WKB by themselves, but as a way to represent a geometry in a larger data object or file. This is exactly why we need to talk about them, because GeoParquet (which we'll look at in the next exercise) uses WKB encoding to store geometries. This exercise is really just a necessary prerequisite to help us make the jump from the easy-and-human-readable-but-not-CNG GeoJSON format to the much more complex GeoParquet format by preparing us for what we'll be reading out of a GeoParquet's geometry column.
+#
+# And it's always a good time when you get to play around with `struct`. 😁
 
 # %% [markdown]
 # ## The exercise
@@ -126,7 +128,7 @@ geom_str = """{
 # <!--[[[end]]]-->
 
 # %% [markdown]
-# Now, let's write this Polygon geometry out in WKT format by hand.
+# Now, let's write this Polygon geometry out by encoded as WKT.
 
 # %%
 #| scrub-note:
@@ -149,7 +151,7 @@ shapely_wkt.loads(wkt)
 # %% [markdown]
 # ### WKB encoding
 #
-# Our next step is to convert our WKT into WKB. We initially converted our GeoJSON to WKT because WKT is much closer to WKB in format, so we should be able to take our WKT and more or less encode it directly to WKB manually. We'll use the python `struct` module to help us pack native Python values into the WKB binary structure, which should help with the hard parts.
+# Our next step is to convert our WKT into WKB, again by hand. We initially converted our GeoJSON geometry to WKT because WKT sits pretty well in the middle of the GeoJSON and WKB representations, and we should be able to take our WKT and more or less directly translate it to WKB. We'll use the python `struct` module to help us pack native Python values into the WKB binary structure, which should bridge the hard parts for us.
 #
 # To proceed, we need to define some variables:
 #
