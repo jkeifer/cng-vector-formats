@@ -17,6 +17,7 @@
 # hctef byte cache)
 buildings.parquet.json
 fms.json
+.metadata-cache/
 .hctef-cache/
 
 # Jupyter runtime artifacts
