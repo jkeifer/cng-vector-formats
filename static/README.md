@@ -215,5 +215,5 @@ This workshop was originally created for [FOSS4G
 | Date | Location | Slides | Notes |
 | ---- | -------- | ------ | ----- |
 | 2026-11-02 | [FOSS4G NA Sacramento, CA](https://talks.osgeo.org/foss4g-na-2026/talk/A838QC/) | [Link](https://docs.google.com/presentation/d/1e8uUF99BBLlzIPyIokFMPP1iZS0xQxBaQjuWTI11f7E) | |
-| 2025-11-18 | [FOSS4G Hiroshima, Japan](https://talks.osgeo.org/foss4g-2026-workshop/talk/MPR9BD/) | [Link](https://docs.google.com/presentation/d/1e8uUF99BBLlzIPyIokFMPP1iZS0xQxBaQjuWTI11f7E) | |
+| 2026-08-31 | [FOSS4G Hiroshima, Japan](https://talks.osgeo.org/foss4g-2026-workshop/talk/8ZUPMV/) | [Link](https://docs.google.com/presentation/d/1e8uUF99BBLlzIPyIokFMPP1iZS0xQxBaQjuWTI11f7E) | |
 | 2025-11-18 | [FOSS4G Auckland, NZ](https://talks.osgeo.org/foss4g-2025/talk/MHHJE7/) | [Link](https://docs.google.com/presentation/d/1iddpQ7KSaSjUpxwy3SWzptsZsQNaD0AxyrL3KRB9H0s) | Original presentation. |
