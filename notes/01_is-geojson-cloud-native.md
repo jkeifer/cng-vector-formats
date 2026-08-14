@@ -5,7 +5,6 @@ This file contains the original content of cells marked for note-taking.
 ## cell0
 
 ```python
-#| scrub-note: cell0 | geojson_str = """PASTE YOUR GEOJSON FEATURE COLLECTION HERE"""
 geojson_str = """{
   "type": "FeatureCollection",
   "features": [
@@ -50,7 +49,6 @@ geojson_str = """{
 ## cell1
 
 ```python
-#| scrub-note: cell1
 geojson = json.loads(geojson_str)
 geojson
 ```
@@ -58,28 +56,24 @@ geojson
 ## cell2
 
 ```python
-#| scrub-note: cell2
 len(condensed)
 ```
 
 ## cell3
 
 ```python
-#| scrub-note: cell3
 json.loads(condensed[:200])
 ```
 
 ## cell4
 
 ```python
-#| scrub-note: cell4
 json.loads(condensed[200:])
 ```
 
 ## cell5
 
 ```python
-#| scrub-note: cell5
 json.loads(substring)
 ```
 

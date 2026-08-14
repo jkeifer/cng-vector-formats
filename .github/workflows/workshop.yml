@@ -1,0 +1,70 @@
+name: Workshop
+
+# Executes the *published* notebooks in the *participant's* dependency set.
+#
+# This is not a duplicate of ci.yml's notebooks job. That one runs on main,
+# where the dev dependency group is installed; the workshop branch ships only
+# the runtime dependencies. A notebook that leans on a dev-group package
+# passes there and fails for participants, and only this catches it.
+#
+# The file is authored on main and ships verbatim to the workshop branch via
+# [tool.workshopify.build] include, so one copy serves both branches:
+#
+#   push / pull_request  fire on the workshop branch, from its own copy --
+#                        GitHub reads the workflow from the ref involved,
+#                        not from the default branch.
+#   schedule / dispatch  fire on main, because a schedule only ever runs the
+#                        default branch's copy. Those check out `workshop`
+#                        explicitly (see the checkout step below).
+#
+# The monthly run is the point of the schedule: notebook 03 reads live
+# Overture data, which drifts on a calendar rather than on your commits, and
+# nobody pushes to the workshop branch between publishing and delivery.
+# Use the manual dispatch to confirm things still work the morning of.
+on:
+  push:
+    branches: [workshop]
+  pull_request:
+    branches: [workshop]
+  schedule:
+    - cron: '0 5 1 * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HCTEF_CACHE_DIR: ${{ github.workspace }}/.hctef-cache
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # On push/PR the default ref is already the workshop branch. On a
+          # schedule or a manual dispatch this workflow runs from main, so
+          # name the branch we actually mean to test.
+          ref: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'workshop' || '' }}
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+      - name: Restore hctef byte cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .hctef-cache
+          key: workshop-hctef-cache-${{ github.run_id }}
+          restore-keys: |
+            workshop-hctef-cache-
+      # No dev group here, and no workshopify: the workshop branch is a build
+      # artifact. The notebooks already exist, so there is nothing to
+      # generate -- just run what participants will run.
+      - name: Install dependencies
+        run: uv sync
+      - name: Execute notebook 01
+        run: uv run jupyter execute notebooks-completed/01_is-geojson-cloud-native.ipynb
+      - name: Execute notebook 02
+        run: uv run jupyter execute notebooks-completed/02_the-well-knowns.ipynb
+      - name: Execute notebook 03
+        run: uv run jupyter execute notebooks-completed/03_reading-parquet-the-hard-way.ipynb

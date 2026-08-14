@@ -375,7 +375,7 @@ dependencies = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.1" },
     { name = "devtools", specifier = ">=0.12.2" },
-    { name = "hctef", extras = ["async"], specifier = ">=0.4.0" },
+    { name = "hctef", extras = ["async"], specifier = ">=0.4.1" },
     { name = "ipython", specifier = ">=9.16.1" },
     { name = "jupyterlab", specifier = ">=4.4.6" },
     { name = "por-que", specifier = ">=0.5.0" },
@@ -553,11 +553,11 @@ wheels = [
 
 [[package]]
 name = "hctef"
-version = "0.4.0"
+version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f5/9c/a93a3b7b52de1adb99f0ecbeeb3de8f261e13251372d20368b06789d9a83/hctef-0.4.0.tar.gz", hash = "sha256:cf2931d8dba9db6042506d5c35bf089637ff5f89005b6b71b2fe0939f616828c", size = 94525, upload-time = "2026-07-10T00:38:48.901Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cf/2f/89504874c87a1a41dbebb60de91fb2a7a56c076d7b3bde7e96a6cbb8cdad/hctef-0.4.1.tar.gz", hash = "sha256:1719887287627b606c454a2bbc25ada7c6345ca8bb333b3e076d365f292602f0", size = 95929, upload-time = "2026-08-13T20:11:51.589Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/47/0b/b36b12259634a3cbf70a3aa0a8a8d70f3403f8b654825650efc57a9608ab/hctef-0.4.0-py3-none-any.whl", hash = "sha256:ac5f6a0cb0b3d4a887108e5916cf2a9340f8927ec5db37d9f840e910d07c5a48", size = 28717, upload-time = "2026-07-10T00:38:47.539Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/bf/4d06d3bafdada0b2c67a37b23d6dd374f7e3c8278ac505e8f3f406210c30/hctef-0.4.1-py3-none-any.whl", hash = "sha256:3be1d6cfbfd4fa9b69ab862fbd33badb27eaf9d5fea616f056f3667e758fd2e4", size = 29348, upload-time = "2026-08-13T20:11:49.301Z" },
 ]
 
 [package.optional-dependencies]

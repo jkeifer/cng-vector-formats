@@ -4,7 +4,8 @@ Dig into geospatial vector formats—including GeoJSON, WKT/WKB, and cloud-nativ
 GeoParquet—using Python to see in detail how vector features are stored in each
 format and to understand what cloud-native means for vector data.
 
-[Slides for the 2025-11 FOSS4G workshops are here.](https://docs.google.com/presentation/d/1iddpQ7KSaSjUpxwy3SWzptsZsQNaD0AxyrL3KRB9H0s)
+[Slides for the 2026 FOSS4G Workshops are
+here.](https://docs.google.com/presentation/d/1e8uUF99BBLlzIPyIokFMPP1iZS0xQxBaQjuWTI11f7E)
 
 Using the [docker execution
 method](#running-locally-with-docker-recommended-for-local-executions) may be
@@ -12,12 +13,22 @@ the best option due to the uncertainty of conference internet quality. But
 GitHub Codespaces can be a good fallback option for those that want/need a
 simpler solution.
 
+> [!IMPORTANT]
+> Notebook 03 requires at least 2.5GB of available memory to run. Ensure you
+> have this available on your system. If the notebook kernel crashes at any
+> point it is likely due to not enough available memory.
+
 ## Workshop Overview
 
+Ever wonder what DuckDB is doing under the hood when you open a Parquet table?
+How can it so performantly chew through massive amounts data when executing
+queries? How can it do so when running over the network against files stored in
+object storage?
+
 Cloud-native geospatial is all the rage these days, and for good reason. As
-file sizes grow, layer counts increase, and analytical methods become more
+data sizes grow, layer counts increase, and analytical methods become more
 complex, the traditional download-to-the-desktop approach is quickly becoming
-untenable for many applications. It's no surprise then that users are turning
+untenable for many applications. It’s no surprise then that users are turning
 to cloud-based tools to scale out their analyses, or that traditional tooling
 is adopting new ways of finding and accessing data from cloud-based sources.
 But as we transition away from opening whole files to now grabbing ranges of
@@ -26,27 +37,26 @@ how cloud-native data formats actually store data and what tools are doing to
 access it.
 
 This workshop aims to dig into how cloud-native geospatial data formats are
-enabling new operational paradigms, with a particular focus on vector data
-formats. Unlike its raster workshop counterpart, this workshop will be a bit
-more experimental. Vector data formats tend towards greater complexity than
-raster formats, so exactly how deep we get into which topics will be dependent
-on the audience’s interests and the time available. Broad themes to explore
-might include:
+enabling new operational paradigms, with a particular focus on (Geo)Parquet.
+Participants do not need an existing familiarity with Parquet: we’ll work
+together to develop a understanding of the concepts behind the format, starting
+with GeoJSON and progressing from there, roughly as follows:
 
 * GeoJSON: what is it, what does it represent, and how it is not cloud-native
 * Well-Known Text/Binary (WKT/WKB): how these vector formats work and why they
-  are important in GeoParquet
-* Parquet: how does parquet store data, how geo maps into that paradigm, and
-  what it takes to read some subset of data from a parquet file
-* Other cloud-native formats like FlatGeobuf, PMTiles, etc.
-* Practical considerations when using these formats
+  are important in (Geo)Parquet
+* (Geo)Parquet: how does parquet store data, how geo maps into that paradigm,
+  and what it takes to read some subset of data from a parquet table
 
-The content of this workshop aims to not only be theoretical: a strong goal is
-to be as hands-on with these formats as possible by working with them in Python
-without any specific geospatial format libraries. We’ll look at interacting
-with object storage directly, to pull down files and fragments and inspect
-them, to build up working understanding of what common higher-level tooling
-does under the hood and abstracts away from users.
+The content of this workshop aims to be not only theoretical but practical: a
+strong goal is to be as hands-on with these formats as possible by working with
+them in Python. We’ll eschew common tools, opting to take a more manual
+approach where possible. Using the educationally-focused Parquet library
+[por-que](https://github.com/jkeifer/por-que) will give us a deeper view into
+the process of reading Parquet files, their metadata, and techniques used to
+performantly run queries. Throughout, we’ll be building up working
+understanding of what common higher-level tooling does under the hood and
+abstracts away from users.
 
 ### Prerequisites
 
@@ -56,13 +66,17 @@ notebook code is already provided, so any gaps in understanding don't
 necessarily prohibit completing the exercises. That said, some knowledge of the
 geospatial vector formats and tooling is quite helpful.
 
+Working through [the author’s raster formats
+workshop](https://github.com/jkeifer/cng-raster-formats) is also encouraged but
+optional.
+
 ## Getting Started
 
 The interesting contents of this repo are, primarily, the Jupyter notebooks:
 
 * [`./notebooks`](./notebooks) holds the exercise notebooks to work through
   during the workshop.
-* [`./notebooks/completed`](./notebooks/completed) holds the completed version
+* [`./notebooks-completed`](./notebooks-completed) holds the completed version
   of each exercise, for reference or if you get stuck.
 * [`./notes`](./notes) holds the exercise notes.
 
@@ -80,6 +94,10 @@ Docker compose is the recommended approach if wanting to keep all services
 local (due to bad internet and/or concerns about leveraging GitHub services).
 GitHub codespaces are recommended if considering ease of use alone.
 
+> [!IMPORTANT]
+> Remember, this branch is `workshop`, so all the clone commands below require
+> you to select the `workshop` branch (or switch to it once you clone).
+
 ### Running locally with docker (recommended for local executions)
 
 Using docker has the advantage of better constraining the execution
@@ -92,7 +110,7 @@ environment to run docker.
 To begin, clone this repo:
 
 ```commandline
-git clone https://github.com/jkeifer/cng-vector-formats.git
+git clone --branch workshop https://github.com/jkeifer/cng-vector-formats.git
 cd cng-vector-formats
 ```
 
@@ -128,13 +146,14 @@ Note that the instructions below were written with a MacOS/Linux environment in
 mind. Windows users will likely need to leverage something like [git for
 Windows](https://gitforwindows.org/) and the included Git BASH tool to follow
 along (WSL is also likely a viable solution to get a Linux environment on a
-Windows machine).
+Windows machine). **This notebook has not been tested on Windows**, however, so
+the other options are strongly recommended over this one for Windows users.
 
 To get started, clone this repository and start up JupyterLab using `uv run`.
 Users will need to have `uv` installed to use this option.
 
 ```commandline
-git clone https://github.com/jkeifer/cng-vector-formats.git
+git clone --branch workshop https://github.com/jkeifer/cng-vector-formats.git
 cd cng-vector-formats
 uv run jupyter lab
 ```
@@ -147,19 +166,21 @@ Select a notebook from the `notebooks` directory and work through it.
 ### Running in GitHub Codespaces
 
 This method does not require any environment setup, repo cloning, or having to
-execute any code locally. However, it does depend on an external, web-based
-service, which may not be ideal in environments with unknown internet quality
-(i.e., conferences). Codespaces can also occasionally exhibit weirdness that
-does not occur when executing locally—though the notebooks now persist fetched
-bytes to an on-disk cache, so re-running after any hiccup is fast and cheap.
-The fact that all this option requires is a GitHub account and a web browser
-means it can be a great solution for many users.
+execute any code locally. All this option requires is a GitHub account and a
+web browser, making it simple solution for many users. However, it does depend
+on an external, web-based service, which may not be ideal in environments with
+unknown internet quality (i.e., conferences).
 
-To use GitHub Codespaces, first login to GitHub. Then, browse to [the project
-repo in Github](https://github.com/jkeifer/cng-vector-formats). There, click
-the green `<> Code` dropdown button, select the `Codespaces` tab in the
-dropdown menu, then click the button to add a new codespace from the `workshop`
-branch.
+To use GitHub Codespaces, first login to GitHub. Then, go to this link
+https://codespaces.new/jkeifer/cng-vector-formats/tree/workshop and click the
+green "Create Codespace" button.
+
+(To do the same as that link manually, browse to [the project repo in
+Github](https://github.com/jkeifer/cng-vector-formats). There, click the green
+`<> Code` dropdown button, select the `Codespaces` tab in the dropdown menu. On
+that menu click the three dot menu and select "New with options...". On the
+screen the opens changes the branch to the `workshop` branch, usa all the other
+defaults, and click the green "Create Codespace" button.)
 
 The codespace will launch in a new browser tab, running the web version of VS
 Code. The notebooks can be opened and executed directly in this interface. The
@@ -186,10 +207,13 @@ notebook.
 
 ### Origin
 
-This workshop was originally created for [FOSS4G 2025](https://talks.osgeo.org/foss4g-2025/talk/MHHJE7/).
+This workshop was originally created for [FOSS4G
+2025](https://talks.osgeo.org/foss4g-2025/talk/MHHJE7/).
 
 ### All Workshop Presentations
 
 | Date | Location | Slides | Notes |
 | ---- | -------- | ------ | ----- |
+| 2026-11-02 | [FOSS4G NA Sacramento, CA](https://talks.osgeo.org/foss4g-na-2026/talk/A838QC/) | [Link](https://docs.google.com/presentation/d/1e8uUF99BBLlzIPyIokFMPP1iZS0xQxBaQjuWTI11f7E) | |
+| 2026-08-31 | [FOSS4G Hiroshima, Japan](https://talks.osgeo.org/foss4g-2026-workshop/talk/8ZUPMV/) | [Link](https://docs.google.com/presentation/d/1e8uUF99BBLlzIPyIokFMPP1iZS0xQxBaQjuWTI11f7E) | |
 | 2025-11-18 | [FOSS4G Auckland, NZ](https://talks.osgeo.org/foss4g-2025/talk/MHHJE7/) | [Link](https://docs.google.com/presentation/d/1iddpQ7KSaSjUpxwy3SWzptsZsQNaD0AxyrL3KRB9H0s) | Original presentation. |

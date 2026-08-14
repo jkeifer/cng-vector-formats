@@ -5,7 +5,6 @@ This file contains the original content of cells marked for note-taking.
 ## cell0
 
 ```python
-#| scrub-note: cell0 | geom_str = """PASTE YOUR GEOJSON GEOMETRY HERE"""
 geom_str = """{
     "coordinates": [[
         [132.4693292, 34.3952499],
@@ -21,7 +20,6 @@ geom_str = """{
 ## cell1
 
 ```python
-#| scrub-note: cell1 | wkt = 'WRITE YOUR WKT POLYGON HERE'
 wkt = 'POLYGON((132.4693292 34.3952499, 132.4695581 34.3951943, 132.469393 34.3947249, 132.4691665 34.3947776, 132.4693292 34.3952499))'
 wkt
 ```
@@ -29,7 +27,6 @@ wkt
 ## cell2
 
 ```python
-#| scrub-note: cell2 | # DEFINE THE ABOVE VARIABLES HERE FOR YOUR GEOMETRY
 endianness = 1
 geom_type = 3
 ring_count = 1
@@ -45,7 +42,6 @@ ring_points = [
 ## cell3
 
 ```python
-#| scrub-note: cell3 | wkb = struct.pack('FILL IN THE FORMAT CODE', endianness, geom_type, ring_count, len(ring_points), *(c for pair in ring_points for c in pair))
 wkb = struct.pack(
     f'{"<" if endianness else ">"}BIII{len(ring_points) * 2}d',
     endianness,
