@@ -11,9 +11,9 @@
 # <div class="alert alert-block alert-info">
 # <b>Take note!</b>
 #
-# This workshop series is designed for multiple locations around the world, and as such this notebook as been written to be as generic as possible with regard to matched files/row groups/rows and the corresponding counts and geometry relationships. Depending on what location you are doing you might see some selection operations that don't fully make sense, like trying to further narrow down a set that has already been selected down to a single match.
+# This workshop series is designed for multiple locations around the world, and runs against Overture Maps data that is updated and repartitioned frequently. As such, this notebook has been written to be as generic as possible with regard to matched files/row groups/rows and the corresponding counts and geometry relationships. Depending on what location you are doing you might see some selection operations that don't fully make sense, like trying to further narrow down a set that has already been selected down to a single match.
 #
-# When you see this happen: think about what would need to be done if we did get more matches and we needed to filter futher. The query process in this notebook should be robust to any number of matches for each of the search layers, so treat each as a learning opportunity, even if the result doesn't change in the specific case.
+# When you see this happen: instead of thinking why don't we take the one match, think about what would need to be done if we had gotten more matches and we needed to filter futher. The query process in this notebook should be robust to any number of matches for each of the search layers, so treat each layer as a learning opportunity, even if the result doesn't materially change.
 # </div>
 #
 # ## Predicate pushdown
@@ -304,9 +304,22 @@ class BulkFileMetadataLoader(BulkLoader):
 class BulkParquetFileLoader(BulkLoader):
     verb = 'parsed'
 
+    def __init__(self, row_groups: dict[str, list[int]], **kwargs) -> None:
+        # the column projection is the same for every file, but the row
+        # group projection is not, so this loader is constructed from the
+        # whole url -> row group indexes mapping and looks up each url as
+        # it goes. That mapping is also the work list, so it sets the total.
+        super().__init__(len(row_groups), **kwargs)
+        self.row_groups = row_groups
+
     async def _load(self, url: str) -> tuple[ParquetFile, int]:
         async with self.open(url) as f:
-            pf = await ParquetFile.from_reader(f, url, columns=self.columns)
+            pf = await ParquetFile.from_reader(
+                f,
+                url,
+                columns=self.columns,
+                row_groups=self.row_groups[url],
+            )
             # read before the file closes; it costs nothing by
             # this point, as opening the file already learned the size
             return pf, f.size
@@ -577,9 +590,17 @@ json.loads(
 #
 # Three important tricks make this workable at this scale:
 #
-# * **Column projection.** A full parse of one of these footers retains roughly 24 MB of parsed metadata per file: multiply by every file in the dataset and, depending on how much memory you have, you might just crash the process. But the filtering stages ahead only need the four bbox columns! Instead of parsing everything in the metadata, we can skip all the column chunk metadata we don't care about. To allow this, `FileMetadata.from_reader()` accepts a `columns=` projection, and if we use it to read only the bbox columns instead of everything we use only around 10% the memory. Note that the schema and the key/value `geo` metadata always parse fully, leaving our file-level bboxes are unaffected.
-# * **A parsed-metadata cache.** The network bytes are already covered by the disk cache, but the parse itself is CPU-bound and takes a few minutes for the whole dataset. So `FileMetadataCache` writes each file's parsed metadata and size to a JSON document under `.metadata-cache/`, named for a hash of the URL, the `por-que` version, and the cache's own format version (so that changing any of the three leaves stale entries unreachable rather than loading them as something they aren't). `load_url()` checks that cache first, and a hit skips the parse _and_ the network entirely, making a re-run (or a crash recovery) seconds instead of minutes.
-# * **A shared connection pool.** Left to its own devices, an `AsyncHttpFile` builds its own HTTP transport, and with it its own pool of connections. Opening several hundred at once therefore means several hundred simultaneous attempts to connect to the same host, and the server will start dropping them on the floor. But going fully serial is no good either: we would pay a full round trip per file before any parsing could start. What we want is many requests in flight, but a bounded number. We get exactly that by sharing one connection pool: the loader is an async context manager that creates a single `AiohttpTransport` up front and hands it to every file, via its `open()` method. The pool is sized by the loader's `concurrency`, and it queues any request beyond that, so the bound is enforced at the one place the resource actually is, and files reuse each other's connections instead of each paying its own TCP and TLS handshake. An injected transport is caller-owned, so the loader closes it on the way out.
+# * **Column projection.**
+#
+#   A full parse of one of these footers retains roughly 24 MB of parsed metadata per file: multiply by every file in the dataset and, depending on how much memory you have, you might just crash the process. But the filtering stages ahead only need the four bbox columns! Instead of parsing everything in the metadata, we can skip all the column chunk metadata we don't care about. To allow this, `FileMetadata.from_reader()` accepts a `columns=` projection, and if we use it to read only the bbox columns instead of everything we use only around 10% the memory. Note that the schema and the key/value `geo` metadata always parse fully, leaving our file-level bboxes are unaffected.
+#
+# * **A parsed-metadata cache.**
+#
+#   The network bytes are already covered by the disk cache, but the parse itself is CPU-bound and takes a few minutes for the whole dataset. So `FileMetadataCache` writes each file's parsed metadata and size to a JSON document under `.metadata-cache/`, named for a hash of the URL, the `por-que` version, and the cache's own format version (so that changing any of the three leaves stale entries unreachable rather than loading them as something they aren't). `load_url()` checks that cache first, and a hit skips the parse _and_ the network entirely, making a re-run (or a crash recovery) seconds instead of minutes.
+#
+# * **A shared connection pool.**
+#
+#   Left to its own devices, an `AsyncHttpFile` builds its own HTTP transport, and with it its own pool of connections. Opening several hundred at once therefore means several hundred simultaneous attempts to connect to the same host, and the server will start dropping them on the floor. But going fully serial is no good either: we would pay a full round trip per file before any parsing could start. What we want is many requests in flight, but a bounded number. We get exactly that by sharing one connection pool: the loader is an async context manager that creates a single `AiohttpTransport` up front and hands it to every file, via its `open()` method. The pool is sized by the loader's `concurrency`, and it queues any request beyond that, so the bound is enforced at the one place the resource actually is, and files reuse each other's connections instead of each paying its own TCP and TLS handshake. An injected transport is caller-owned, so the loader closes it on the way out.
 #
 # And since this is the longest-running cell in the notebook, we'll keep ourselves sane with a live progress line: here `por-que`'s per-file progress callback is the wrong granularity (hundreds of files parsing concurrently), so instead the loader bumps a completed-files counter as each file finishes and updates a single display.
 
@@ -772,30 +793,81 @@ len(intersecting_rgs)
 pprint(pf.metadata.row_groups[0].column_chunks['geometry'])
 
 # %% [markdown]
-# Hmm, that's not super helpful looking. It might be time to say we've done as much as we can without reading data, and start fetching rows.
+# Hmm, that's not super helpful looking. This seems to be about as far as we can get on metadata alone.
+#
+# <div class="alert alert-block alert-info">
+# <b>Note</b>
+#
+# Modern GeoParquet does include **geospatial statistics** at the column chunk level, but this is really just a way of getting the same bbox per row group, except it's attached to geometry-type column chunks. The end result would be the same: we'd have gone as far as we could on just metadata. Except the process to get there would have been simpler, faster, and would have used less memory, because we'd only have had to look at a single column's metadata instead of four.
+#
+# </div>
+#
+# ### Row group filtering across every file
+#
+# Before we start reading data, though, we need to finish up with the metadata operations. We ran the row group check against a single file, but we have a `FileMetadata` instance for every file that survived the file-level filter, so let's run the same row group check across all of them to isolate the set of row groups that _might_ have matching data.
+#
+# And this step serves us more than just finding row groups: we can drop all file where no row groups match at all! That might seem suspicious; surely a file whose bounding box intersects has at least one intersecting row group? Except a file's bounding box is the union of its row groups' bounding boxes, i.e., it's a rectangle that contains all the smaller rectangles, and as such it can intersect our geometry even when not one of its members does.
+
+# %%
+matching_rgs = {}
+for fm_url, fm in fms.items():
+    matched_indexes = [
+        index
+        for index, rg in enumerate(fm.row_groups)
+        if get_rg_bbox(rg).intersects(geom_bbox)
+    ]
+    if matched_indexes:
+        matching_rgs[fm_url] = matched_indexes
+
+matching_rgs
+
+# %% [markdown]
+# So how much have we managed to eliminate using nothing but metadata? We can compare what's left against the totals for the whole dataset. We summed the rows across every file earlier, and the STAC items give us the dataset's row group count without our having to have kept the metadata of all the files we ruled out.
+
+# %%
+remaining_files = len(matching_rgs)
+remaining_row_groups = sum(len(indexes) for indexes in matching_rgs.values())
+remaining_rows = sum(
+    fms[url].row_groups[index].row_count
+    for url, indexes in matching_rgs.items()
+    for index in indexes
+)
+
+for label, remaining, total in (
+    ('files', remaining_files, len(parquet_urls)),
+    (
+        'row groups',
+        remaining_row_groups,
+        sum(item['properties']['num_row_groups'] for item in items),
+    ),
+    ('rows', remaining_rows, total_rows),
+):
+    print(f'{label}: {remaining:_} of {total:_} remaining ({remaining / total:.4%})')
+
+# %% [markdown]
+# Not bad for having read nothing but metadata! And note the rows we have left are only an upper bound on what we'll actually have to look at in detail: just like a file's bbox can match when none of the row groups do, a row group survives if any of its rows _might_ match, so most of those remaining rows are still going to be misses we can quickly and efficiently eliminate via a bbox check.
+#
+# But now we know exactly which row groups of which files we need, which is sure a lot better than having to download each and every record to check for true geometric intersection.
 
 # %% [markdown]
 # ## Reading and filtering rows
 #
 # To read rows we need to get full `ParquetFile` instances for our intersecting files. Once we have a `ParquetFile` instance, we can read its column chunks.
 #
-# We're going to need a `ParquetFile` instance per intersecting file. Because instantiating them is a time consuming operation, let's instantiate them all in parallel here, building them up into a dictionary keyed on the file URL. Like the earlier `FileMetadata` scan, we pass a `columns=` projection so `por-que` only materializes the physical structure for the handful of columns we will actually read: the bbox columns for filtering, plus `names.primary` and `geometry` for the final lookups. Filtering here makes this parse dramatically faster than a full-file scan. Then we can just grab one of them to use for the remainder of this section as we prove out the rest of our process (making sure it is for the same file as the `FileMetadata` instance we were using above).
+# We're going to need a `ParquetFile` instance per file we still have in play. Because instantiating them is a time consuming operation, let's instantiate them all in parallel here, building them up into a dictionary keyed on the file URL.
 #
-# This is the same bulk-loading problem we just solved, so it gets the same solution: `BulkParquetFileLoader` is a sibling of `BulkFileMetadataLoader`, and both are `BulkLoader` subclasses that differ only in what they do with a single file. Everything that has to be shared across a run — one connection pool, one progress line — lives in the base class.
+# Like the earlier `FileMetadata` scan, we pass a `columns=` projection so `por-que` only materializes the handful of columns we will actually read: the bbox columns for filtering, plus `names.primary` and `geometry` for the final lookups.
 #
-# Sharing the pool matters even more here than it did for the metadata scan. Building a `ParquetFile` reads far more of the file than reading its metadata does, so each one issues many more range requests; `AsyncHttpFile` already caps its own in-flight requests per file, but nothing stops a pile of independently-opened files from each running up to that cap at once. Hand every file its own transport and they compete for the same host until the server starts refusing range requests, at which point the retries make the whole thing _slower_ than loading the files one at a time.
+# However, this time we can be selective along not just the column axis, but _both_ axes of the file. To do so we pass `row_groups=`, handing it the exact row group indices we just worked out for that file. Between the two we identify only a small rectangle of the file, a few columns of a few row groups, and everything outside of that rectangle is not read or parsed at all. All that metadata filtering we just did, it converts directly into _work we get to skip here_.
 #
-# Progress is per-loader rather than per-file for the same reason it was during the scan: `por-que`'s `progress=` callback reports on one parse, so with several parses interleaving we would get several status lines racing each other and no sense of overall progress. A single completed-files counter is the granularity we actually want here. (The `progress=` callback is still the right tool for the single-file parse we did earlier, which is why we kept `parquet_progress()` around.)
+# This is the same bulk-loading problem we just saw in action with the FileMetadata instances, so it gets the same solution: `BulkParquetFileLoader` is a sibling of `BulkFileMetadataLoader`. The one major asymmetry is that this loader's projection is per-file, because the matching row groups differ per file, so it takes the `matching_rgs` mapping and looks up each URL's row groups as it goes.
 
 # %%
 SEARCH_COLS = [*BBOX_COLS, 'names.primary', 'geometry']
 
-async with BulkParquetFileLoader(
-    len(urls_that_intersect),
-    columns=SEARCH_COLS,
-) as loader:
+async with BulkParquetFileLoader(matching_rgs, columns=SEARCH_COLS) as loader:
     pf_tasks = []
-    for url in urls_that_intersect:
+    for url in matching_rgs:
         pf_tasks.append(
             asyncio.create_task(
                 loader.load_url(url),
@@ -804,22 +876,30 @@ async with BulkParquetFileLoader(
 
     pfs_and_sizes = await asyncio.gather(*pf_tasks)
 
-pfs = dict(zip(urls_that_intersect, (pf for pf, _ in pfs_and_sizes)))
+pfs = dict(zip(matching_rgs, (pf for pf, _ in pfs_and_sizes)))
 searched_bytes = sum(size for _, size in pfs_and_sizes)
-
-pf = pfs[urls_that_intersect[0]]
 
 print(f'{searched_bytes:_} bytes across {len(pfs)} files')
 
 # %% [markdown]
-# With a `ParquetFile` instance, we can find all four of the `bbox` column chunks in one of our intersected row groups. We do this by iterating through all column chunks in the file, keeping those that are part of our intersected row group index (given by that row group's `ordinal` property) that have a schema path starting with `bbox`. The column chunks we collect here we'll put into a dictionary, keyed on the column chunk path in the schema (e.g., `bbox.min`).
+# Now let's grab one file, and one of its matching row groups, to use for the remainder of this section as we prove out the rest of our process.
+
+# %%
+demo_url, demo_rgs = next(iter(matching_rgs.items()))
+pf = pfs[demo_url]
+
+demo_url, demo_rgs
+
+# %% [markdown]
+# With a `ParquetFile` instance, we can find all four of the `bbox` column chunks in one of our intersected row groups. We do this by iterating through all column chunks in the file, keeping those whose `row_group` is our target row group index and whose schema path starts with `bbox`. The column chunks we collect here we'll put into a dictionary, keyed on the column chunk path in the schema (e.g., `bbox.min`).
+#
+# Because of our projection, every column chunk on this `ParquetFile` is already one we asked for: this filter is just picking out which of them we want right now.
 
 # %%
 bbox_chunks = {
     cc.path_in_schema: cc
     for cc in pf.column_chunks
-    if cc.row_group == intersecting_rgs[0].ordinal
-    and cc.path_in_schema.startswith('bbox')
+    if cc.row_group == demo_rgs[0] and cc.path_in_schema.startswith('bbox')
 }
 bbox_chunks.keys()
 
@@ -837,7 +917,7 @@ pprint(bbox_chunks['bbox.xmin'])
 # Let's use `parse_all_data_pages()` with each of our bbox chunks to get all the bbox values for our target row group. We have to have a readable filelike object to pass in because we need to read file data, so we'll use the `AsyncHttpFile` class again and pass in an open instance of that class. The data values we read we'll zip together into a four-tuple like `(xmin, ymin, xmax, ymax)`; this tuple provides us a data structure we can use to instantiate `BBox` instances for each row in a later step.
 
 # %%
-async with AsyncHttpFile(urls_that_intersect[0]) as hf:
+async with AsyncHttpFile(demo_url) as hf:
     bbox_tuples = [
         bbox_tuple
         async for bbox_tuple in azip(
@@ -873,21 +953,23 @@ for row_index, bbox_tuple in enumerate(bbox_tuples):
 # %% [markdown]
 # ## Putting this all together
 #
-# Let's make a function that, given a `ParquetFile` instance, will search for intersecting row group bounding boxes, then search those row groups for rows with intersecting bounding boxes.
+# Let's make a function that, given a `ParquetFile` instance and the row group indices we found for it, will search each of those row groups for rows with intersecting bounding boxes.
+#
+# Remember, we have no need for row group filtering here: we already did that against the file metadata. The `ParquetFile` has only the row groups we specified when we created it, per those that matched the file metadata search.
 
 
 # %%
-async def find_intersecting_rows(pf: ParquetFile) -> dict[int, list[int]]:
+async def find_intersecting_rows(
+    pf: ParquetFile,
+    row_group_indexes: list[int],
+) -> dict[int, list[int]]:
     matched_rows = {}
     async with AsyncHttpFile(pf.source) as hf:
-        for rg in pf.metadata.row_groups:
-            if not get_rg_bbox(rg).intersects(geom_bbox):
-                continue
-
+        for rg_index in row_group_indexes:
             bbox_chunks = {
                 cc.path_in_schema: cc
                 for cc in pf.column_chunks
-                if cc.row_group == rg.ordinal and cc.path_in_schema.startswith('bbox')
+                if cc.row_group == rg_index and cc.path_in_schema.startswith('bbox')
             }
 
             bbox_tuples = [
@@ -903,22 +985,25 @@ async def find_intersecting_rows(pf: ParquetFile) -> dict[int, list[int]]:
             for row_index, bbox_tuple in enumerate(bbox_tuples):
                 if BBox(*(i.value for i in bbox_tuple)).intersects(geom_bbox):
                     try:
-                        matched_rows[rg.ordinal].append(row_index)
+                        matched_rows[rg_index].append(row_index)
                     except KeyError:
-                        matched_rows[rg.ordinal] = [row_index]
+                        matched_rows[rg_index] = [row_index]
 
     return matched_rows
 
 
 # %% [markdown]
-# Now let's use our `find_intersecting_rows` function on each of our intersecting `ParquetFile` instances. We'll track the outputs in a nested dictionary structure mapping file URL to row group index to intersected row indices.
+# Now let's use our `find_intersecting_rows` function on each of our `ParquetFile` instances, pairing each with the row group indices we found for it. We'll track the outputs in a nested dictionary structure mapping file URL to row group index to intersected row indices.
 
 # %%
 matched_rows: dict[str, dict[int, list[int]]] = dict(
     zip(
-        urls_that_intersect,
+        matching_rgs,
         await asyncio.gather(
-            *[asyncio.create_task(find_intersecting_rows(pf)) for pf in pfs.values()]
+            *[
+                asyncio.create_task(find_intersecting_rows(pfs[url], rg_indexes))
+                for url, rg_indexes in matching_rgs.items()
+            ]
         ),
     )
 )
